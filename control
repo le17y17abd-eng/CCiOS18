@@ -1,6 +1,6 @@
 Package: com.le17y17abd-eng.ccios18
 Name: CCiOS18
-Version: 0.1.0
+Version: 0.1.1
 Architecture: iphoneos-arm64
 Description: iOS 18-inspired Control Center visual styling for iOS 15.
 Maintainer: le17y17abd-eng
