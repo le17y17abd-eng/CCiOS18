@@ -47,7 +47,9 @@ static void CCiOS18RoundModuleViews(UIView *view) {
 %hook CCUIModularControlCenterOverlayViewController
 - (void)viewDidLayoutSubviews {
     %orig;
-    CCiOS18AddBackdrop(self.view);
-    CCiOS18RoundModuleViews(self.view);
+    // Logos forward-declares hooked classes; cast to UIViewController to access its view.
+    UIView *rootView = [(UIViewController *)self view];
+    CCiOS18AddBackdrop(rootView);
+    CCiOS18RoundModuleViews(rootView);
 }
 %end
