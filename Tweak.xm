@@ -34,10 +34,11 @@ static void CCiOS18RoundModuleViews(UIView *view) {
 
     if (candidate && ![objc_getAssociatedObject(view, kCCiOS18StyledKey) boolValue]) {
         objc_setAssociatedObject(view, kCCiOS18StyledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        view.layer.cornerRadius = 16.0;
+        view.layer.cornerRadius = 18.0;
         view.layer.cornerCurve = kCACornerCurveContinuous;
-        view.layer.borderWidth = 0.5;
-        view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.14].CGColor;
+        view.layer.borderWidth = 0.7;
+        view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
+        view.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.035];
         view.layer.masksToBounds = YES;
     }
 
