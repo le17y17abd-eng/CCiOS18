@@ -59,8 +59,8 @@ static CGFloat CCiOS18RadiusForContainer(UIView *view, BOOL hasSlider) {
     return MIN(24.0, minSide * 0.27);
 }
 
-static void CCiOS18StyleSliderViews(UIView *container) {
-    for (UIView *view in container.subviews) {
+static void CCiOS18StyleSliderViews(id containerObject) {
+    UIView *container = (UIView *)containerObject;\n    for (UIView *view in container.subviews) {
         BOOL continuous = CCiOS18ClassContains(view, @"CCUIContinuousSliderView");
         BOOL stepped = CCiOS18ClassContains(view, @"CCUISteppedSliderView");
         BOOL material = CCiOS18ClassContains(view, @"MTMaterialView");
@@ -85,20 +85,20 @@ static void CCiOS18StyleSliderViews(UIView *container) {
     @try {
         BOOL hasSlider = CCiOS18TreeContainsClassPart(self, @"CCUIContinuousSliderView") ||
                          CCiOS18TreeContainsClassPart(self, @"CCUISteppedSliderView");
-        CGFloat radius = CCiOS18RadiusForContainer(self, hasSlider);
+        UIView *containerView = (UIView *)self;\n        CGFloat radius = CCiOS18RadiusForContainer(containerView, hasSlider);
 
-        self.layer.cornerRadius = radius;
-        if (@available(iOS 13.0, *)) self.layer.cornerCurve = kCACornerCurveContinuous;
-        self.layer.borderWidth = 0.8;
-        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.19].CGColor;
-        self.layer.masksToBounds = YES;
-        self.clipsToBounds = YES;
+        containerView.layer.cornerRadius = radius;
+        if (@available(iOS 13.0, *)) containerView.layer.cornerCurve = kCACornerCurveContinuous;
+        containerView.layer.borderWidth = 0.8;
+        containerView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.19].CGColor;
+        containerView.layer.masksToBounds = YES;
+        containerView.clipsToBounds = YES;
 
         // Subtle translucent surface, while retaining the native module's content and actions.
         if (!self.backgroundColor || CGColorGetAlpha(self.backgroundColor.CGColor) > 0.85) {
             self.backgroundColor = [UIColor colorWithWhite:0.16 alpha:0.18];
         }
-        CCiOS18StyleSliderViews(self);
+        CCiOS18StyleSliderViews(containerView);
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Module styling exception: %@", exception);
     }
@@ -111,7 +111,7 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 - (void)viewDidLayoutSubviews {
     %orig;
     @try {
-        CCiOS18InstallBackdrop(self.view);
+        CCiOS18InstallBackdrop([(UIViewController *)self view]);
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Backdrop exception: %@", exception);
     }
