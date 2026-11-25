@@ -2,55 +2,69 @@
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
-// Stage 1: visual-only treatment. Native Control Center controls remain untouched.
+// CCiOS18 visual layer for iOS 15 Control Center.
+// Native Control Center modules and their actions are intentionally preserved.
 static const NSInteger kCCiOS18BackdropTag = 180018;
 static const void *kCCiOS18StyledKey = &kCCiOS18StyledKey;
 
-static void CCiOS18AddBackdrop(UIView *root) {
+static void CCiOS18InstallBackdrop(UIView *root) {
     if (!root || [root viewWithTag:kCCiOS18BackdropTag]) return;
 
-    UIVisualEffectView *backdrop =
-      [[UIVisualEffectView alloc] initWithEffect:
-        [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial]];
+    UIBlurEffect *effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
+    UIVisualEffectView *backdrop = [[UIVisualEffectView alloc] initWithEffect:effect];
     backdrop.tag = kCCiOS18BackdropTag;
     backdrop.userInteractionEnabled = NO;
+    backdrop.alpha = 0.96;
     backdrop.frame = root.bounds;
     backdrop.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [root insertSubview:backdrop atIndex:0];
 
-    UIView *shade = [[UIView alloc] initWithFrame:backdrop.bounds];
-    shade.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.10];
-    shade.userInteractionEnabled = NO;
-    shade.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [backdrop.contentView addSubview:shade];
+    UIView *tint = [[UIView alloc] initWithFrame:backdrop.bounds];
+    tint.backgroundColor = [UIColor colorWithWhite:0.02 alpha:0.18];
+    tint.userInteractionEnabled = NO;
+    tint.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [backdrop.contentView addSubview:tint];
+
+    [root insertSubview:backdrop atIndex:0];
 }
 
-static void CCiOS18RoundModuleViews(UIView *view) {
+static BOOL CCiOS18IsModuleView(UIView *view) {
+    if (!view) return NO;
+    NSString *name = NSStringFromClass(view.class);
+    if ([name containsString:@"Controller"]) return NO;
+    return [name containsString:@"Module"] || [name containsString:@"module"];
+}
+
+static void CCiOS18StyleModuleTree(UIView *view) {
     if (!view) return;
 
-    NSString *name = NSStringFromClass(view.class);
-    BOOL candidate = ([name containsString:@"Module"] || [name containsString:@"module"]) &&
-                    ![name containsString:@"Controller"];
-
-    if (candidate && ![objc_getAssociatedObject(view, kCCiOS18StyledKey) boolValue]) {
+    if (CCiOS18IsModuleView(view) &&
+        ![objc_getAssociatedObject(view, kCCiOS18StyledKey) boolValue]) {
         objc_setAssociatedObject(view, kCCiOS18StyledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        view.layer.cornerRadius = 18.0;
-        view.layer.cornerCurve = kCACornerCurveContinuous;
-        view.layer.borderWidth = 0.7;
-        view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
-        view.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.035];
-        view.layer.masksToBounds = YES;
+
+        view.layer.cornerRadius = 19.0;
+        if (@available(iOS 13.0, *)) {
+            view.layer.cornerCurve = kCACornerCurveContinuous;
+        }
+        view.layer.borderWidth = 0.75;
+        view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
+
+        // A restrained translucent fill gives native modules a glass-card finish.
+        view.backgroundColor = [UIColor colorWithWhite:0.12 alpha:0.16];
     }
 
-    for (UIView *child in view.subviews) CCiOS18RoundModuleViews(child);
+    for (UIView *child in view.subviews) {
+        CCiOS18StyleModuleTree(child);
+    }
 }
 
 %hook CCUIModularControlCenterOverlayViewController
+
 - (void)viewDidLayoutSubviews {
     %orig;
-    // Logos forward-declares hooked classes; cast to UIViewController to access its view.
-    UIView *rootView = [(UIViewController *)self view];
-    CCiOS18AddBackdrop(rootView);
-    CCiOS18RoundModuleViews(rootView);
+
+    UIView *root = [(UIViewController *)self view];
+    CCiOS18InstallBackdrop(root);
+    CCiOS18StyleModuleTree(root);
 }
+
 %end
