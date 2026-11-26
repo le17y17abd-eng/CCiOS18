@@ -18,6 +18,12 @@
 @end
 
 
+typedef struct CCUILayoutSize { NSUInteger width; NSUInteger height; } CCUILayoutSize;
+typedef struct CCUILayoutPoint { NSUInteger x; NSUInteger y; } CCUILayoutPoint;
+typedef struct CCUILayoutRect { CCUILayoutPoint origin; CCUILayoutSize size; } CCUILayoutRect;
+static NSArray<UIViewController *> *CCiOS18InlineModules(UIViewController *overlay);
+static NSString *CCiOS18IdentifierFromObject(id object, NSUInteger depth);
+
 typedef struct CCiOS18GridSize { NSUInteger width; NSUInteger height; } CCiOS18GridSize;
 typedef struct CCiOS18GridPoint { NSUInteger x; NSUInteger y; } CCiOS18GridPoint;
 typedef struct CCiOS18GridRect { CCiOS18GridPoint origin; CCiOS18GridSize size; } CCiOS18GridRect;
