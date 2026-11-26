@@ -146,6 +146,7 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
 
 @interface CCiOS18ModuleOrderEditor : UITableViewController
 @property(nonatomic, strong) NSMutableArray<NSString *> *moduleIdentifiers;
+@property(nonatomic, strong) NSArray<NSDictionary<NSString *, NSString *> *> *availableModules;
 - (instancetype)initWithModuleIdentifiers:(NSArray<NSString *> *)identifiers;
 @end
 
@@ -155,10 +156,30 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
     self = [super initWithStyle:UITableViewStyleInsetGrouped];
     if (self) {
         _moduleIdentifiers = identifiers ? [identifiers mutableCopy] : [NSMutableArray new];
-        self.title = @"Arrange Controls";
+        _availableModules = @[
+            @{@"id": @"com.apple.control-center.FlashlightModule", @"name": @"Flashlight"},
+            @{@"id": @"com.apple.mobiletimer.controlcenter.timer", @"name": @"Timer"},
+            @{@"id": @"com.apple.control-center.CalculatorModule", @"name": @"Calculator"},
+            @{@"id": @"com.apple.control-center.CameraModule", @"name": @"Camera"},
+            @{@"id": @"com.apple.control-center.ScreenRecordingModule", @"name": @"Screen Recording"},
+            @{@"id": @"com.apple.control-center.LowPowerModule", @"name": @"Low Power Mode"},
+            @{@"id": @"com.apple.control-center.DarkModeModule", @"name": @"Dark Mode"},
+            @{@"id": @"com.apple.control-center.TextSizeModule", @"name": @"Text Size"},
+            @{@"id": @"com.apple.control-center.HearingAidsModule", @"name": @"Hearing"},
+            @{@"id": @"com.apple.control-center.CodeScannerModule", @"name": @"Code Scanner"}
+        ];
+        self.title = @"Customize Controls";
         self.modalPresentationStyle = UIModalPresentationFormSheet;
     }
     return self;
+}
+
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)ccios18_availableNotEnabled {
+    NSMutableArray *result = [NSMutableArray new];
+    for (NSDictionary *module in self.availableModules) {
+        if (![self.moduleIdentifiers containsObject:module[@"id"]]) [result addObject:module];
+    }
+    return result;
 }
 
 - (void)viewDidLoad {
@@ -169,35 +190,81 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
     self.tableView.editing = YES;
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(ccios18_cancel)];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemSave target:self action:@selector(ccios18_save)];
-    self.navigationItem.prompt = @"Drag the handles to change the order";
+    self.navigationItem.prompt = @"Reorder, add, or remove controls";
 }
 
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return 2; }
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return self.moduleIdentifiers.count;
+    return section == 0 ? self.moduleIdentifiers.count : [self ccios18_availableNotEnabled].count;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    return section == 0 ? @"INCLUDED CONTROLS" : @"MORE CONTROLS";
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    return section == 0 ? @"Drag controls to change their order. Tap the minus button to remove one." : @"Tap the plus button to add a control to Control Center.";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *reuse = @"CCiOS18ModuleOrderCell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:reuse];
     if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:reuse];
-    NSString *identifier = self.moduleIdentifiers[indexPath.row];
-    cell.textLabel.text = CCiOS18ReadableModuleName(identifier);
+    NSString *identifier = nil;
+    NSString *name = nil;
+    if (indexPath.section == 0) {
+        identifier = self.moduleIdentifiers[indexPath.row];
+        name = CCiOS18ReadableModuleName(identifier);
+        cell.detailTextLabel.text = identifier;
+        cell.showsReorderControl = YES;
+    } else {
+        NSDictionary *module = [self ccios18_availableNotEnabled][indexPath.row];
+        identifier = module[@"id"];
+        name = module[@"name"];
+        cell.detailTextLabel.text = @"";
+        cell.showsReorderControl = NO;
+    }
+    cell.textLabel.text = name;
     cell.textLabel.textColor = [UIColor labelColor];
-    cell.detailTextLabel.text = identifier;
     cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+
+    UIButton *action = [UIButton buttonWithType:UIButtonTypeSystem];
+    action.frame = CGRectMake(0, 0, 34, 34);
+    action.tag = indexPath.section == 0 ? 0 : 1;
+    action.accessibilityIdentifier = identifier;
+    UIImage *symbol = [UIImage systemImageNamed:(indexPath.section == 0 ? @"minus.circle.fill" : @"plus.circle.fill")];
+    [action setImage:symbol forState:UIControlStateNormal];
+    action.tintColor = indexPath.section == 0 ? [UIColor systemRedColor] : [UIColor systemGreenColor];
+    [action addTarget:self action:@selector(ccios18_toggleModule:) forControlEvents:UIControlEventTouchUpInside];
+    cell.accessoryView = action;
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    cell.showsReorderControl = YES;
     return cell;
 }
 
 - (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath {
-    return YES;
+    return indexPath.section == 0;
 }
 
 - (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath {
+    if (sourceIndexPath.section != 0 || destinationIndexPath.section != 0) {
+        [tableView reloadData];
+        return;
+    }
     NSString *identifier = self.moduleIdentifiers[sourceIndexPath.row];
     [self.moduleIdentifiers removeObjectAtIndex:sourceIndexPath.row];
     [self.moduleIdentifiers insertObject:identifier atIndex:destinationIndexPath.row];
+}
+
+- (void)ccios18_toggleModule:(UIButton *)sender {
+    NSString *identifier = sender.accessibilityIdentifier;
+    if (!identifier.length) return;
+    if (sender.tag == 1) {
+        if (![self.moduleIdentifiers containsObject:identifier]) [self.moduleIdentifiers addObject:identifier];
+    } else {
+        [self.moduleIdentifiers removeObject:identifier];
+    }
+    [self.tableView reloadData];
 }
 
 - (void)ccios18_cancel {
@@ -222,8 +289,8 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
         ((void (*)(id, SEL, id))objc_msgSend)(provider, saveSelector, [self.moduleIdentifiers copy]);
         [self dismissViewControllerAnimated:YES completion:nil];
     } @catch (NSException *exception) {
-        NSLog(@"[CCiOS18] Module order save exception: %@", exception);
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Save Failed" message:@"iOS could not save the new Control Center order. Your current layout was left unchanged." preferredStyle:UIAlertControllerStyleAlert];
+        NSLog(@"[CCiOS18] Module settings save exception: %@", exception);
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Save Failed" message:@"iOS could not save the Control Center changes. Your previous layout was left unchanged." preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
         [self presentViewController:alert animated:YES completion:nil];
     }
