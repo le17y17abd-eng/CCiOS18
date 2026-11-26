@@ -6042,10 +6042,16 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
 - (void)addTapped:(__unused UIButton *)sender { if (!gEnabled || gCCAExpandedModuleOpen) return; CCAHaptic(); [self setEditing:!gEditModeActive]; }
 - (void)expandConnectivityFromMiniCluster:(UIButton *)sender {
     if (!gEnabled || gEditModeActive || gCCAExpandedModuleOpen) return;
-    UIViewController *overlay = gOverlayControllers.allObjects.firstObject;
-    UIViewController *collection = [self moduleCollectionControllerInOverlay:overlay];
     SEL expand = NSSelectorFromString(@"expandModuleWithIdentifier:");
-    if (!collection || ![collection respondsToSelector:expand]) return;
+    UIViewController *collection = nil;
+    for (UIViewController *candidateOverlay in gOverlayControllers.allObjects) {
+        UIViewController *candidateCollection = [self moduleCollectionControllerInOverlay:candidateOverlay];
+        if (candidateCollection && [candidateCollection respondsToSelector:expand]) {
+            collection = candidateCollection;
+            break;
+        }
+    }
+    if (!collection) return;
     UIView *sourceView = sender.superview ?: sender;
     if (sourceView.window) {
         gCCAConnectivityProxySourceView = sourceView;
@@ -6099,14 +6105,29 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
         [self expandConnectivityFromMiniCluster:(UIButton *)sender];
         return;
     }
+    CCASetConnectivityProxyPressed(sender, NO);
+    UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
+    // Personal Hotspot must be toggled by Apple's own control. The private
+    // SBTetheringController setter can report success while the tethering
+    // session remains active, leaving only our optimistic artwork switched off.
+    // Forward the actual native control action for both ON and OFF so iOS keeps
+    // its cellular-data/carrier availability checks and performs the real stop.
+    if ([identifier.lowercaseString containsString:@".hotspot"]) {
+        CCAHaptic();
+        if (nativeControl) [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.55 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            for (UIViewController *overlay in gOverlayControllers.allObjects) {
+                for (UIViewController *module in CCACollectModuleControllers(overlay)) {
+                    if ([CCAModuleIdentifier(module) isEqualToString:identifier]) CCAConfigureOddResizedModuleLayout(module);
+                }
+            }
+        });
+        return;
+    }
     BOOL current = CCAConnectivitySelectedForIdentifier(identifier);
     BOOL target = !current;
-    CCASetConnectivityProxyPressed(sender, NO);
     BOOL changed = NO;
-    if (identifier.length) {
-        changed = CCAConnectivitySetIdentifier(identifier, target);
-    }
-    UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
+    if (identifier.length) changed = CCAConnectivitySetIdentifier(identifier, target);
     CCAHaptic();
     if (changed && identifier.length) {
         gCCAConnectivityOptimisticStates[identifier] = @(target);
