@@ -1,8 +1,8 @@
 Package: com.le17y17abd-eng.ccios18
 Name: CCiOS18
-Version: 0.3.0
+Version: 0.4.0
 Architecture: iphoneos-arm64
-Description: iOS 18-inspired glass styling for native iOS 15 Control Center modules and sliders.
+Description: iOS 18-inspired native iOS 15 Control Center connectivity layout and glass styling.
 Maintainer: le17y17abd-eng
 Author: le17y17abd-eng
 Section: Tweaks
