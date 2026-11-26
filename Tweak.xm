@@ -6071,15 +6071,18 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
     [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
 }
 - (void)connectivityProxyTapped:(UIControl *)sender {
-    UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
-    if (nativeControl) {
-        [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
-        return;
-    }
     NSInteger tag = sender.tag;
+    // These compact controls are snapshots of native views that are deliberately
+    // hidden in the compact layout. Forwarding a synthetic touch to those hidden
+    // controls is unreliable (and can silently do nothing). Open Apple's real
+    // expanded Connectivity module instead; its live controls remain interactive
+    // and preserve the system's AirDrop/Personal Hotspot availability rules.
     if (tag == kCCAConnectivityCompactAirDropTag || tag == kCCAConnectivityCompactHotspotTag) {
         [self expandConnectivityFromMiniCluster:(UIButton *)sender];
+        return;
     }
+    UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
+    if (nativeControl) [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
 }
 - (void)connectivityTileProxyTouchDown:(UIControl *)sender {
     CCASetConnectivityProxyPressed(sender, YES);
@@ -10971,9 +10974,10 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
     expand.userInteractionEnabled = !gEditModeActive;
     expand.frame = CGRectInset(compactMetrics.bottomRight, -compactMetrics.gap * 0.5, -compactMetrics.gap * 0.5);
     [root bringSubviewToFront:miniCluster];
-    [root bringSubviewToFront:airDropProxy];
     [root bringSubviewToFront:bluetoothProxy];
     [root bringSubviewToFront:expand];
+    // Keep both actionable snapshots above the broad expansion hit target.
+    [root bringSubviewToFront:airDropProxy];
     [root bringSubviewToFront:hotspotProxy];
 }
 
