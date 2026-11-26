@@ -315,8 +315,11 @@ static char kCCiOS18InlineResizeBaseScaleKey;
 @implementation CCiOS18LongPressDelegate
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
 shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
-    if ([otherGestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]] && [otherGestureRecognizer.view isKindOfClass:[UIScrollView class]]) return NO;
-    return YES;
+    // Match CCAster's exclusive gesture arbitration: Control Center's native
+    // scroll/dismiss pans must never run simultaneously with module gestures.
+    if ([gestureRecognizer.view isKindOfClass:[UIScrollView class]] ||
+        [otherGestureRecognizer.view isKindOfClass:[UIScrollView class]]) return NO;
+    return NO;
 }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
@@ -537,6 +540,29 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
     CGFloat scale = [[NSUserDefaults standardUserDefaults] floatForKey:key];
     return scale >= 0.70 && scale <= 1.40 ? scale : 1.0;
 }
+
+static CCiOS18GridSize CCiOS18ResizeCandidateForIdentifier(NSString *identifier, CCiOS18GridSize base, CCiOS18GridSize start, CGPoint translation) {
+    CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
+    CGFloat desiredWidth = (CGFloat)start.width + translation.x / step;
+    CGFloat desiredHeight = (CGFloat)start.height + translation.y / step;
+    BOOL isNowPlaying = [identifier isEqualToString:@"com.apple.mediaremote.controlcenter.nowplaying"];
+    if (isNowPlaying && base.width == 2 && base.height == 2) {
+        if (desiredWidth < 3.0) return (CCiOS18GridSize){2, 2};
+        if (desiredHeight < 1.5) return (CCiOS18GridSize){4, 1};
+        if (desiredHeight >= 3.0) return (CCiOS18GridSize){4, 4};
+        return (CCiOS18GridSize){4, 2};
+    }
+    if (base.width == 1 && base.height == 1) {
+        if (desiredHeight >= 1.5) return (CCiOS18GridSize){2, 2};
+        if (desiredWidth >= 1.5) return (CCiOS18GridSize){2, 1};
+        return (CCiOS18GridSize){1, 1};
+    }
+    if (base.width == 2 && base.height == 2) {
+        return desiredWidth >= 3.0 ? (CCiOS18GridSize){4, 2} : (CCiOS18GridSize){2, 2};
+    }
+    return base;
+}
+
 
 %hook CCUIModularControlCenterOverlayViewController
 
@@ -931,18 +957,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
         CGFloat dx = translation.x / step, dy = translation.y / step;
         CCiOS18GridSize candidate = start;
-        if (baseSize.width == 1 && baseSize.height == 1) {
-            if (start.width == 1 && start.height == 1) {
-                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
-                else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
-            } else if (start.width == 2 && start.height == 1) {
-                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
-                else if (dx <= -0.65) candidate = (CCiOS18GridSize){1,1};
-            } else if (start.width == 2 && start.height == 2) {
-                if (dy <= -0.65) candidate = (CCiOS18GridSize){2,1};
-                if (dx <= -0.65 && dy <= -0.65) candidate = (CCiOS18GridSize){1,1};
-            }
-        } else if (baseSize.width == 2 && baseSize.height == 2) {
+        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation); else if (baseSize.width == 2 && baseSize.height == 2) {
             if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
         }
         CGFloat width = candidate.width * kCCiOS18GridCell + (candidate.width-1) * kCCiOS18GridGap;
@@ -960,18 +975,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
         CCiOS18GridSize candidate = start;
         CGFloat dx = translation.x / step, dy = translation.y / step;
-        if (baseSize.width == 1 && baseSize.height == 1) {
-            if (start.width == 1 && start.height == 1) {
-                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
-                else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
-            } else if (start.width == 2 && start.height == 1) {
-                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
-                else if (dx <= -0.65) candidate = (CCiOS18GridSize){1,1};
-            } else if (start.width == 2 && start.height == 2) {
-                if (dy <= -0.65) candidate = (CCiOS18GridSize){2,1};
-                if (dx <= -0.65 && dy <= -0.65) candidate = (CCiOS18GridSize){1,1};
-            }
-        } else if (baseSize.width == 2 && baseSize.height == 2) {
+        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation); else if (baseSize.width == 2 && baseSize.height == 2) {
             if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
         }
         if (candidate.width != start.width || candidate.height != start.height) {
