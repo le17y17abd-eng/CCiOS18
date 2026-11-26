@@ -247,6 +247,7 @@ static void CCiOS18ConnectivityBundleLoaded(CFNotificationCenterRef center, void
 }
 
 %ctor {
+    %init;
     CCiOS18InstallConnectivityHooks();
     CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL,
         CCiOS18ConnectivityBundleLoaded, (CFStringRef)NSBundleDidLoadNotification,
