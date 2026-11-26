@@ -12,6 +12,7 @@
 - (void)ccios18_removeInlineControl:(UIButton *)sender;
 - (void)ccios18_showInlineAddControls;
 - (void)ccios18_inlineModulePanned:(UIPanGestureRecognizer *)gesture;
+- (void)ccios18_inlineModulePinched:(UIPinchGestureRecognizer *)gesture;
 - (void)ccios18_finishInlineEditing;
 @end
 
@@ -129,6 +130,9 @@ static char kCCiOS18InlineDragSourceKey;
 static char kCCiOS18InlineDragIdentifierKey;
 static char kCCiOS18InlineDragOffsetKey;
 static char kCCiOS18InlineScrollEnabledKey;
+static char kCCiOS18InlineScrollOffsetKey;
+static char kCCiOS18InlinePinchGestureKey;
+static char kCCiOS18InlinePinchBaseScaleKey;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
 @end
@@ -136,10 +140,14 @@ static char kCCiOS18InlineScrollEnabledKey;
 @implementation CCiOS18LongPressDelegate
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
 shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    if ([otherGestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]] && [otherGestureRecognizer.view isKindOfClass:[UIScrollView class]]) return NO;
     return YES;
 }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
+        UIViewController *overlay = objc_getAssociatedObject(gestureRecognizer, &kCCiOS18InlineOverlayKey);
+        if (!overlay || ![objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue]) return NO;
+    } else if ([gestureRecognizer isKindOfClass:[UIPinchGestureRecognizer class]]) {
         UIViewController *overlay = objc_getAssociatedObject(gestureRecognizer, &kCCiOS18InlineOverlayKey);
         if (!overlay || ![objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue]) return NO;
     } else {
@@ -297,6 +305,35 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     return button;
 }
 
+static void CCiOS18SetScrollViewsForEditing(UIView *view, BOOL editing) {
+    if (!view) return;
+    if ([view isKindOfClass:[UIScrollView class]]) {
+        UIScrollView *scroll = (UIScrollView *)view;
+        NSNumber *wasEnabled = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey);
+        NSValue *savedOffset = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey);
+        if (editing) {
+            if (!wasEnabled) {
+                objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, @(scroll.scrollEnabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, [NSValue valueWithCGPoint:scroll.contentOffset], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            scroll.scrollEnabled = NO;
+        } else if (wasEnabled) {
+            scroll.scrollEnabled = wasEnabled.boolValue;
+            if (savedOffset) [scroll setContentOffset:savedOffset.CGPointValue animated:NO];
+            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+    }
+    for (UIView *child in view.subviews) CCiOS18SetScrollViewsForEditing(child, editing);
+}
+
+static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
+    if (!identifier.length) return 1.0;
+    NSString *key = [@"CCiOS18ModuleScale." stringByAppendingString:identifier];
+    CGFloat scale = [[NSUserDefaults standardUserDefaults] floatForKey:key];
+    return scale >= 0.70 && scale <= 1.40 ? scale : 1.0;
+}
+
 %hook CCUIModularControlCenterOverlayViewController
 
 - (void)viewDidLayoutSubviews {
@@ -310,7 +347,7 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         if (!longPress) {
             longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_handleLongPress:)];
             longPress.minimumPressDuration = 0.55;
-            longPress.cancelsTouchesInView = YES;
+            longPress.cancelsTouchesInView = NO;
             longPress.delaysTouchesBegan = NO;
             longPress.delegate = CCiOS18SharedLongPressDelegate();
             [root addGestureRecognizer:longPress];
@@ -336,23 +373,10 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     UIView *root = [(UIViewController *)self view];
     objc_setAssociatedObject(self, &kCCiOS18InlineEditingKey, @(editing), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
+    CCiOS18SetScrollViewsForEditing(root, editing);
     for (UIViewController *module in CCiOS18InlineModules((UIViewController *)self)) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
         BOOL isUserEditable = identifier.length && [editableOrder containsObject:identifier];
-        for (UIView *ancestor = module.view.superview; ancestor; ancestor = ancestor.superview) {
-            if (![ancestor isKindOfClass:[UIScrollView class]]) continue;
-            NSNumber *originalScrollEnabled = objc_getAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey);
-            if (editing) {
-                if (!originalScrollEnabled) {
-                    objc_setAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey,
-                        @( ((UIScrollView *)ancestor).scrollEnabled ), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                }
-                ((UIScrollView *)ancestor).scrollEnabled = NO;
-            } else if (originalScrollEnabled) {
-                ((UIScrollView *)ancestor).scrollEnabled = originalScrollEnabled.boolValue;
-                objc_setAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-        }
         if (editing) {
             if (isUserEditable) {
                 UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
@@ -367,15 +391,30 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
                     objc_setAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 }
                 pan.enabled = YES;
+                UIPinchGestureRecognizer *pinch = objc_getAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey);
+                if (!pinch) {
+                    pinch = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_inlineModulePinched:)];
+                    pinch.cancelsTouchesInView = NO;
+                    pinch.delegate = CCiOS18SharedLongPressDelegate();
+                    objc_setAssociatedObject(pinch, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
+                    [module.view addGestureRecognizer:pinch];
+                    objc_setAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey, pinch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+                pinch.enabled = YES;
+                CGFloat savedScale = CCiOS18SavedScaleForIdentifier(identifier);
+                module.view.transform = CGAffineTransformMakeScale(savedScale, savedScale);
             }
             module.view.layer.borderWidth = 1.4;
-            module.view.layer.borderColor = [UIColor colorWithRed:0.95 green:0.28 blue:0.27 alpha:0.9].CGColor;
+            module.view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.88].CGColor;
             module.view.layer.cornerRadius = 17.0;
         } else {
             module.view.layer.borderWidth = 0.0;
             module.view.layer.borderColor = nil;
             UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
             pan.enabled = NO;
+            UIPinchGestureRecognizer *pinch = objc_getAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey);
+            pinch.enabled = NO;
+            module.view.transform = CGAffineTransformIdentity;
         }
     }
 
@@ -442,8 +481,8 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
             remove = [UIButton buttonWithType:UIButtonTypeSystem];
             remove.tag = kCCiOS18InlineRemoveTag;
             remove.accessibilityIdentifier = identifier;
-            remove.backgroundColor = [UIColor colorWithRed:0.94 green:0.22 blue:0.22 alpha:1.0];
-            remove.tintColor = UIColor.whiteColor;
+            remove.backgroundColor = [UIColor colorWithWhite:0.92 alpha:0.96];
+            remove.tintColor = [UIColor colorWithWhite:0.22 alpha:1.0];
             remove.layer.cornerRadius = 12.0;
             remove.layer.borderWidth = 1.0;
             remove.layer.borderColor = UIColor.whiteColor.CGColor;
@@ -593,6 +632,36 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self ccios18_refreshInlineEditor];
+    }
+}
+
+%new
+- (void)ccios18_inlineModulePinched:(UIPinchGestureRecognizer *)gesture {
+    UIView *moduleView = gesture.view;
+    if (!moduleView) return;
+    NSString *identifier = nil;
+    for (UIViewController *candidate in CCiOS18InlineModules((UIViewController *)self)) {
+        if (candidate.view == moduleView) { identifier = CCiOS18IdentifierFromObject(candidate, 0); break; }
+    }
+    if (!identifier.length) return;
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        objc_setAssociatedObject(moduleView, &kCCiOS18InlinePinchBaseScaleKey, @(CCiOS18SavedScaleForIdentifier(identifier)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        CGFloat base = [objc_getAssociatedObject(moduleView, &kCCiOS18InlinePinchBaseScaleKey) doubleValue];
+        if (base <= 0.0) base = 1.0;
+        CGFloat scale = MAX(0.70, MIN(1.40, base * gesture.scale));
+        moduleView.transform = CGAffineTransformMakeScale(scale, scale);
+    } else if (gesture.state == UIGestureRecognizerStateEnded) {
+        CGFloat scale = MAX(0.70, MIN(1.40, moduleView.transform.a));
+        NSString *key = [@"CCiOS18ModuleScale." stringByAppendingString:identifier];
+        [[NSUserDefaults standardUserDefaults] setFloat:scale forKey:key];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        objc_setAssociatedObject(moduleView, &kCCiOS18InlinePinchBaseScaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self ccios18_refreshInlineEditor];
+    } else if (gesture.state == UIGestureRecognizerStateCancelled || gesture.state == UIGestureRecognizerStateFailed) {
+        CGFloat base = [objc_getAssociatedObject(moduleView, &kCCiOS18InlinePinchBaseScaleKey) doubleValue];
+        if (base <= 0.0) base = 1.0;
+        moduleView.transform = CGAffineTransformMakeScale(base, base);
     }
 }
 
