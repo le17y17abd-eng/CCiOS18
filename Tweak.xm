@@ -7392,42 +7392,6 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
     }
     [self applyResizedPresentationToModule:module];
 
-    // Add a restrained Liquid Glass surface to each native Control Center
-    // button. Keep the effect inside the button's own bounds so it never
-    // becomes a full-screen overlay or intercepts touches.
-    static NSInteger const kCCALiquidGlassButtonTag = 181060;
-    NSMutableArray<UIView *> *glassQueue = [NSMutableArray arrayWithObject:view];
-    while (glassQueue.count) {
-        UIView *candidate = glassQueue.firstObject;
-        [glassQueue removeObjectAtIndex:0];
-        NSString *className = NSStringFromClass(candidate.class);
-        BOOL isNativeButton = [className isEqualToString:@"CCUIButtonModuleView"];
-        if (isNativeButton && candidate.bounds.size.width > 1.0 && candidate.bounds.size.height > 1.0) {
-            UIVisualEffectView *glass = (UIVisualEffectView *)[candidate viewWithTag:kCCALiquidGlassButtonTag];
-            if (![glass isKindOfClass:[UIVisualEffectView class]]) {
-                UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial];
-                glass = [[UIVisualEffectView alloc] initWithEffect:blur];
-                glass.tag = kCCALiquidGlassButtonTag;
-                glass.userInteractionEnabled = NO;
-                glass.backgroundColor = UIColor.clearColor;
-                glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                glass.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.10];
-                [candidate insertSubview:glass atIndex:0];
-            }
-            glass.frame = candidate.bounds;
-            CGFloat buttonRadius = MIN(18.0, MIN(CGRectGetWidth(candidate.bounds), CGRectGetHeight(candidate.bounds)) * 0.5);
-            glass.layer.cornerRadius = buttonRadius;
-            glass.layer.cornerCurve = kCACornerCurveContinuous;
-            glass.clipsToBounds = YES;
-            glass.layer.masksToBounds = YES;
-            candidate.layer.cornerRadius = buttonRadius;
-            candidate.layer.cornerCurve = kCACornerCurveContinuous;
-            candidate.layer.borderWidth = 0.65;
-            candidate.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.28].CGColor;
-        }
-        [glassQueue addObjectsFromArray:candidate.subviews];
-    }
-
     CCAConfigureOddResizedModuleLayout(module);
     // Connectivity's individual button controllers lay themselves out after
     // their container. Re-apply the compact iOS 18 arrangement from CCAster's
