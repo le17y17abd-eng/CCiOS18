@@ -518,6 +518,49 @@ static void CCiOS18SetAncestorScrollViewsForEditing(UIView *view, BOOL editing) 
         if ([ancestor isKindOfClass:[UIScrollView class]]) CCiOS18SetSingleScrollViewForEditing((UIScrollView *)ancestor, editing);
     }
 }
+
+static char kCCiOS18NativeGesturesDisabledKey;
+static char kCCiOS18OwnGestureKey;
+
+static void CCiOS18CollectNativeEditingGestures(UIView *view, NSMutableArray<UIGestureRecognizer *> *result) {
+    if (!view) return;
+    for (UIGestureRecognizer *gesture in view.gestureRecognizers) {
+        NSString *name = NSStringFromClass(gesture.class);
+        BOOL blocksEditing = [gesture isKindOfClass:[UITapGestureRecognizer class]] ||
+            [gesture isKindOfClass:[UILongPressGestureRecognizer class]] ||
+            [name localizedCaseInsensitiveContainsString:@"force"] ||
+            [name localizedCaseInsensitiveContainsString:@"click"] ||
+            [name localizedCaseInsensitiveContainsString:@"context"];
+        if (blocksEditing && gesture.enabled &&
+            ![objc_getAssociatedObject(gesture, &kCCiOS18OwnGestureKey) boolValue]) {
+            [result addObject:gesture];
+        }
+    }
+    for (UIView *child in view.subviews) CCiOS18CollectNativeEditingGestures(child, result);
+}
+
+static void CCiOS18SetNativeDismissGesturesEnabled(UIViewController *overlay, BOOL enabled) {
+    if (!overlay.view) return;
+    if (!enabled) {
+        NSMutableArray<UIGestureRecognizer *> *disabled = [NSMutableArray array];
+        CCiOS18CollectNativeEditingGestures(overlay.view, disabled);
+        for (UIGestureRecognizer *gesture in disabled) {
+            gesture.enabled = NO;
+            objc_setAssociatedObject(gesture, &kCCiOS18NativeGesturesDisabledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        objc_setAssociatedObject(overlay, &kCCiOS18NativeGesturesDisabledKey, disabled, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else {
+        NSArray<UIGestureRecognizer *> *disabled = objc_getAssociatedObject(overlay, &kCCiOS18NativeGesturesDisabledKey);
+        for (UIGestureRecognizer *gesture in disabled) {
+            if ([objc_getAssociatedObject(gesture, &kCCiOS18NativeGesturesDisabledKey) boolValue]) {
+                gesture.enabled = YES;
+                objc_setAssociatedObject(gesture, &kCCiOS18NativeGesturesDisabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
+        objc_setAssociatedObject(overlay, &kCCiOS18NativeGesturesDisabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+
 static void CCiOS18RequireAncestorScrollViewsToWaitForLongPress(UIView *view, UILongPressGestureRecognizer *longPress) {
     for (UIView *ancestor = view ? view.superview : nil; ancestor; ancestor = ancestor.superview) {
         if ([ancestor isKindOfClass:[UIScrollView class]]) {
@@ -550,6 +593,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
             longPress.cancelsTouchesInView = YES;
             longPress.delaysTouchesBegan = NO;
             longPress.delegate = CCiOS18SharedLongPressDelegate();
+            objc_setAssociatedObject(longPress, &kCCiOS18OwnGestureKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             longPress.cancelsTouchesInView = NO;
             longPress.delaysTouchesBegan = NO;
             CCiOS18RequireAncestorScrollViewsToWaitForLongPress(root, longPress);
@@ -577,8 +621,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
     if (editing) CCiOS18LoadGridPreferences();
     objc_setAssociatedObject(self, &kCCiOS18InlineEditingKey, @(editing), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
-    CCiOS18SetScrollViewsForEditing(root, editing);
-    CCiOS18SetAncestorScrollViewsForEditing(root, editing);
+    CCiOS18SetNativeDismissGesturesEnabled((UIViewController *)self, !editing);
     for (UIViewController *module in CCiOS18InlineModules((UIViewController *)self)) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
         BOOL isUserEditable = identifier.length && [editableOrder containsObject:identifier];
@@ -591,6 +634,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
                     pan.maximumNumberOfTouches = 1;
                     pan.cancelsTouchesInView = NO;
                     pan.delegate = CCiOS18SharedLongPressDelegate();
+                    objc_setAssociatedObject(pan, &kCCiOS18OwnGestureKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                     objc_setAssociatedObject(pan, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
                     [module.view addGestureRecognizer:pan];
                     objc_setAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -601,6 +645,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
                     pinch = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_inlineModulePinched:)];
                     pinch.cancelsTouchesInView = NO;
                     pinch.delegate = CCiOS18SharedLongPressDelegate();
+                    objc_setAssociatedObject(pinch, &kCCiOS18OwnGestureKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                     objc_setAssociatedObject(pinch, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
                     [module.view addGestureRecognizer:pinch];
                     objc_setAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey, pinch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
