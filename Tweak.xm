@@ -6054,7 +6054,6 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
         }
     }
     if (!collection) return;
-    UIView *sourceView = sender.superview ?: sender;
     // Do not morph Apple's expanded module from our compact tile.
     // Let Control Center present its own untouched native expansion.
     gCCAConnectivityProxySourceView = nil;
