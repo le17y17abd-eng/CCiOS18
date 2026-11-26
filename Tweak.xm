@@ -136,7 +136,6 @@ static char kCCiOS18InlineScrollOffsetKey;
 static char kCCiOS18InlinePinchGestureKey;
 static char kCCiOS18InlinePinchBaseScaleKey;
 static char kCCiOS18InlineResizePanKey;
-static char kCCiOS18InlineResizeStartKey;
 static char kCCiOS18InlineResizeBaseScaleKey;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
