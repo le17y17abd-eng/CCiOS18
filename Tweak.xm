@@ -10379,6 +10379,11 @@ static void CCAResetConnectivityCompactTransforms(UIViewController *controller) 
         for (NSString *name in classes) {
             UIViewController *child = CCAConnectivityChild(controller, name);
             if (child) {
+                // Compact mode hides Cellular, Bluetooth, AirDrop and Hotspot.
+                // Restore every native child before Apple's expanded layout runs.
+                child.view.hidden = NO;
+                child.view.alpha = 1.0;
+                child.view.layer.opacity = 1.0;
                 child.view.transform = CGAffineTransformIdentity;
                 UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
                 objc_setAssociatedObject(roundButton, kCCAConnectivityExpandedCardKey, nil, OBJC_ASSOCIATION_ASSIGN);
