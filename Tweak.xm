@@ -3619,6 +3619,7 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
 - (void)connectivityTileProxyTouchDown:(UIControl *)sender;
 - (void)connectivityTileProxyTouchUp:(UIControl *)sender;
 - (void)connectivityTileProxyHeld:(UILongPressGestureRecognizer *)gesture;
+- (void)connectivityModuleLongPressed:(UILongPressGestureRecognizer *)gesture;
 - (void)connectivityTileProxyForcePressed:(UIControl *)sender;
 - (void)applyResizedPresentationToModule:(UIViewController *)module;
 - (void)updateEditControlFramesForOverlay:(UIViewController *)overlay;
@@ -6028,6 +6029,7 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGesture {
+    if ([objc_getAssociatedObject(gesture, @selector(connectivityModuleLongPressed:)) boolValue] || [objc_getAssociatedObject(otherGesture, @selector(connectivityModuleLongPressed:)) boolValue]) return YES;
     if ([objc_getAssociatedObject(gesture, kCCAEditDismissPanKey) boolValue] || [objc_getAssociatedObject(otherGesture, kCCAEditDismissPanKey) boolValue]) return NO;
     if (gesture.view.tag == kCCAResizeButtonTag || otherGesture.view.tag == kCCAResizeButtonTag || gCCAResizeInProgress) return NO;
     BOOL gestureIsPager = [objc_getAssociatedObject(gesture, kCCAPagerGestureKey) boolValue];
@@ -6158,6 +6160,12 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
             }
         });
     }
+}
+- (void)connectivityModuleLongPressed:(UILongPressGestureRecognizer *)gesture {
+    if (!gesture || gesture.state != UIGestureRecognizerStateBegan || gEditModeActive || gCCAExpandedModuleOpen) return;
+    UIView *root = gesture.view;
+    if (!root || !root.window) return;
+    [self expandConnectivityFromMiniCluster:(UIButton *)root];
 }
 - (void)connectivityTileProxyHeld:(UILongPressGestureRecognizer *)gesture {
     if (gesture && gesture.state != UIGestureRecognizerStateBegan) return;
@@ -10787,6 +10795,21 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
         if (child) children[name] = child;
     }
     BOOL compact = CGRectGetWidth(root.bounds) < 190.0 && CGRectGetHeight(root.bounds) < 190.0;
+    if (compact) {
+        UILongPressGestureRecognizer *moduleHold = objc_getAssociatedObject(root, @selector(connectivityModuleLongPressed:));
+        if (!moduleHold) {
+            moduleHold = [[UILongPressGestureRecognizer alloc] initWithTarget:[CCAsterCoordinator shared] action:@selector(connectivityModuleLongPressed:)];
+            moduleHold.minimumPressDuration = 0.55;
+            moduleHold.cancelsTouchesInView = NO;
+            moduleHold.delaysTouchesBegan = NO;
+            moduleHold.delaysTouchesEnded = NO;
+            moduleHold.delegate = [CCAsterCoordinator shared];
+            objc_setAssociatedObject(moduleHold, @selector(connectivityModuleLongPressed:), @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(root, @selector(connectivityModuleLongPressed:), moduleHold, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [root addGestureRecognizer:moduleHold];
+        }
+        moduleHold.enabled = !gEditModeActive && !gCCAExpandedModuleOpen;
+    }
     UIButton *expand = (UIButton *)[root viewWithTag:kCCAConnectivityExpandButtonTag];
     UIView *miniCluster = [root viewWithTag:kCCAConnectivityMiniClusterTag];
     if (!compact) {
