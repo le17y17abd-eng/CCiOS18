@@ -11629,6 +11629,33 @@ static void CCAConfigureExpandedConnectivityChild(UIViewController *child) {
 
 - (void)layoutSubviews {
     %orig;
+
+    // Install the glass after the native button has completed its own layout.
+    // Doing this here guarantees non-zero bounds and survives Control Center's
+    // repeated relayouts/recreation of compact button contents.
+    static NSInteger const kCCALiquidGlassButtonTag = 181060;
+    UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:kCCALiquidGlassButtonTag];
+    if (![glass isKindOfClass:[UIVisualEffectView class]]) {
+        glass = [[UIVisualEffectView alloc] initWithEffect:
+                 [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]];
+        glass.tag = kCCALiquidGlassButtonTag;
+        glass.userInteractionEnabled = NO;
+        glass.backgroundColor = UIColor.clearColor;
+        glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        glass.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
+        [self insertSubview:glass atIndex:0];
+    }
+    glass.frame = self.bounds;
+    CGFloat glassRadius = MIN(18.0, MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.5);
+    glass.layer.cornerRadius = glassRadius;
+    glass.layer.cornerCurve = kCACornerCurveContinuous;
+    glass.clipsToBounds = YES;
+    glass.layer.masksToBounds = YES;
+    self.layer.cornerRadius = glassRadius;
+    self.layer.cornerCurve = kCACornerCurveContinuous;
+    self.layer.borderWidth = 0.8;
+    self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.32].CGColor;
+
     // resizePanned: applies the presentation exactly when the logical size
     // crosses a valid endpoint. Re-entering it for every intermediate layout
     // pass produces duplicate fades and visible flashing.
