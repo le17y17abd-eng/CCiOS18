@@ -182,6 +182,12 @@ static UIImage *CCAConnectivityControlSnapshot(UIViewController *child, CGSize t
     return image;
 }
 
+@interface CCiOS18ConnectivityCoordinator : NSObject
++ (instancetype)shared;
+- (void)expandConnectivityFromMiniCluster:(UIButton *)sender;
+- (void)connectivityProxyTapped:(UIControl *)sender;
+@end
+
 static UIButton *CCAConnectivitySnapshotProxy(UIView *root, NSInteger tag, CGRect frame, UIViewController *child) {
     UIButton *proxy = (UIButton *)[root viewWithTag:tag];
     if (!proxy) {
@@ -337,12 +343,6 @@ static CCAConnectivityCompactMetrics CCAConnectivityCompactMetricsForBounds(CGRe
     UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
     if (nativeControl) [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
 }
-@end
-
-@interface CCiOS18ConnectivityCoordinator : NSObject
-+ (instancetype)shared;
-- (void)expandConnectivityFromMiniCluster:(UIButton *)sender;
-- (void)connectivityProxyTapped:(UIControl *)sender;
 @end
 
 static void CCAConfigureConnectivityLayout(UIViewController *controller) {
