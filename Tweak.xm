@@ -234,6 +234,20 @@ static NSArray<NSString *> *CCiOS18CurrentEnabledModuleOrder(void) {
     }
 }
 
+static NSArray<NSString *> *CCiOS18FixedModuleIdentifiers(void) {
+    @try {
+        Class providerClass = NSClassFromString(@"CCSModuleSettingsProvider");
+        SEL fixedSelector = NSSelectorFromString(@"_defaultFixedModuleIdentifiers");
+        if (providerClass && [providerClass respondsToSelector:fixedSelector]) {
+            id value = ((id (*)(id, SEL))objc_msgSend)(providerClass, fixedSelector);
+            if ([value isKindOfClass:[NSArray class]]) return [value copy];
+        }
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Could not read fixed module identifiers: %@", exception);
+    }
+    return @[];
+}
+
 static BOOL CCiOS18SaveModuleOrder(NSArray<NSString *> *order) {
     if (!order) return NO;
     @try {
@@ -478,8 +492,12 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     NSArray<NSString *> *current = CCiOS18CurrentEnabledModuleOrder();
     if (!current) return;
     NSMutableArray<NSDictionary *> *available = [NSMutableArray new];
+    NSArray<NSString *> *fixed = CCiOS18FixedModuleIdentifiers();
     for (NSDictionary *item in CCiOS18AvailableInlineModules()) {
-        if (![current containsObject:item[@"id"]]) [available addObject:item];
+        NSString *identifier = item[@"id"];
+        if (![current containsObject:identifier] && ![fixed containsObject:identifier]) {
+            [available addObject:item];
+        }
     }
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Add Controls"
         message:@"Choose a control to add to Control Center." preferredStyle:UIAlertControllerStyleActionSheet];
