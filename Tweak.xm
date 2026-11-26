@@ -139,3 +139,38 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 }
 
 %end
+ 
+// Media controls keep Apple's transport/session actions. This pass only
+// rounds the album artwork and gives it a subtle glass edge.
+static void CCiOS18StyleMediaArtwork(UIView *view) {
+    if (!view) return;
+    for (UIView *child in view.subviews) {
+        if ([child isKindOfClass:[UIImageView class]]) {
+            UIImageView *imageView = (UIImageView *)child;
+            CGSize size = imageView.bounds.size;
+            BOOL artworkSized = size.width >= 64.0 && size.height >= 64.0;
+            BOOL artworkNamed = [NSStringFromClass([imageView class]) rangeOfString:@"Artwork" options:NSCaseInsensitiveSearch].location != NSNotFound;
+            if (artworkSized || artworkNamed) {
+                imageView.layer.cornerRadius = 12.0;
+                if (@available(iOS 13.0, *)) imageView.layer.cornerCurve = kCACornerCurveContinuous;
+                imageView.layer.borderWidth = 0.6;
+                imageView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.16].CGColor;
+                imageView.clipsToBounds = YES;
+            }
+        }
+        CCiOS18StyleMediaArtwork(child);
+    }
+}
+
+%hook CCUIMediaControlsViewController
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    @try {
+        CCiOS18StyleMediaArtwork([(UIViewController *)self view]);
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Media artwork styling exception: %@", exception);
+    }
+}
+
+%end
