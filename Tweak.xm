@@ -134,6 +134,9 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherG
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
         UIViewController *overlay = objc_getAssociatedObject(gestureRecognizer, &kCCiOS18InlineOverlayKey);
         if (!overlay || ![objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue]) return NO;
+    } else {
+        UIViewController *overlay = (UIViewController *)gestureRecognizer.view.nextResponder;
+        if (overlay && [objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue]) return NO;
     }
     UIView *view = touch.view;
     while (view) {
