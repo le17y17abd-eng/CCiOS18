@@ -171,6 +171,7 @@ static NSInteger const kCCAConnectivityMiniClusterTag = 181032;
 static NSInteger const kCCAConnectivityExpandButtonTag = 181033;
 static NSInteger const kCCAConnectivityCompactAirDropTag = 181034;
 static NSInteger const kCCAConnectivityCompactBluetoothTag = 181035;
+static NSInteger const kCCAConnectivityCompactHotspotTag = 181053;
 static NSInteger const kCCAQuickAccessDismissalProxyTag = 181039;
 static NSInteger const kCCAConnectivityTileActionProxyTag = 181049;
 static NSInteger const kCCAConnectivitySelectedSurfaceTag = 181050;
@@ -10360,10 +10361,12 @@ static void CCAResetConnectivityCompactTransforms(UIViewController *controller) 
         UIView *vpn = [controller.view viewWithTag:kCCAConnectivityMiniClusterTag];
         UIView *airDropProxy = [controller.view viewWithTag:kCCAConnectivityCompactAirDropTag];
         UIView *bluetoothProxy = [controller.view viewWithTag:kCCAConnectivityCompactBluetoothTag];
+        UIView *hotspotProxy = [controller.view viewWithTag:kCCAConnectivityCompactHotspotTag];
         expand.hidden = YES;
         vpn.hidden = YES;
         airDropProxy.hidden = YES;
         bluetoothProxy.hidden = YES;
+        hotspotProxy.hidden = YES;
     }];
 }
 
@@ -10935,6 +10938,11 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
                                        CGRectGetMinY(compactMetrics.bottomRight), miniCell, miniCell);
     UIButton *bluetoothProxy = CCAConnectivitySnapshotProxy(root, kCCAConnectivityCompactBluetoothTag, bluetoothFrame,
                                                             children[@"CCUIConnectivityBluetoothViewController"]);
+    CGRect hotspotFrame = CGRectMake(CGRectGetMinX(compactMetrics.bottomRight),
+                                     CGRectGetMinY(compactMetrics.bottomRight) + miniCell + miniGap,
+                                     miniCell, miniCell);
+    UIButton *hotspotProxy = CCAConnectivitySnapshotProxy(root, kCCAConnectivityCompactHotspotTag, hotspotFrame,
+                                                           children[@"CCUIConnectivityHotspotViewController"]);
     if (![objc_getAssociatedObject(controller, kCCAConnectivityProxyRefreshScheduledKey) boolValue]) {
         objc_setAssociatedObject(controller, kCCAConnectivityProxyRefreshScheduledKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         __weak UIViewController *weakController = controller;
@@ -10960,6 +10968,7 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
     [root bringSubviewToFront:airDropProxy];
     [root bringSubviewToFront:bluetoothProxy];
     [root bringSubviewToFront:expand];
+    [root bringSubviewToFront:hotspotProxy];
 }
 
 static CGRect CCAExpandedConnectivityFrameForClass(NSString *className, CGSize containerSize) {
