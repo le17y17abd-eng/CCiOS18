@@ -1,5 +1,7 @@
+#import <CoreFoundation/CoreFoundation.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 #import <math.h>
 
