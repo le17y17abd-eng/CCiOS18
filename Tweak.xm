@@ -239,55 +239,6 @@ static UIButton *CCAConnectivitySnapshotProxy(UIView *root, NSInteger tag, CGRec
     return proxy;
 }
 
-static UIButton *CCAConnectivitySnapshotProxy(UIView *root, NSInteger tag, CGRect frame, UIViewController *child) {
-    UIButton *proxy = (UIButton *)[root viewWithTag:tag];
-    if (!proxy) {
-        proxy = [UIButton buttonWithType:UIButtonTypeCustom];
-        proxy.tag = tag;
-        proxy.imageView.contentMode = UIViewContentModeScaleAspectFit;
-        [proxy addTarget:[CCiOS18ConnectivityCoordinator shared] action:@selector(connectivityProxyTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [root addSubview:proxy];
-    }
-    UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
-    if ([roundButton isKindOfClass:[UIControl class]]) objc_setAssociatedObject(proxy, kCCAConnectivityForwardControlKey, roundButton, OBJC_ASSOCIATION_ASSIGN);
-    proxy.frame = frame;
-    proxy.hidden = NO;
-    proxy.clipsToBounds = NO;
-    if (tag == kCCAConnectivityCompactAirDropTag) {
-        CFPropertyListRef rawMode = CFPreferencesCopyAppValue(CFSTR("DiscoverableMode"), CFSTR("com.apple.sharingd"));
-        NSString *mode = CFBridgingRelease(rawMode);
-        BOOL receiving = mode.length && [mode rangeOfString:@"Off" options:NSCaseInsensitiveSearch].location == NSNotFound;
-        proxy.backgroundColor = receiving ? [UIColor colorWithRed:0.61 green:0.14 blue:0.96 alpha:1.0]
-                                          : [UIColor colorWithWhite:1.0 alpha:0.14];
-        proxy.layer.cornerRadius = CGRectGetHeight(frame) * 0.5;
-        proxy.layer.cornerCurve = kCACornerCurveContinuous;
-        proxy.layer.masksToBounds = YES;
-    }
-    UIImage *snapshot = CCAConnectivityControlSnapshot(child, frame.size);
-    if (snapshot) [proxy setImage:snapshot forState:UIControlStateNormal];
-    if (tag == kCCAConnectivityCompactAirDropTag) {
-        UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
-        NSMutableArray<UIView *> *queue = roundButton ? [NSMutableArray arrayWithObject:roundButton] : [NSMutableArray array];
-        UIImage *glyph = nil;
-        while (queue.count && !glyph) {
-            UIView *candidate = queue.firstObject;
-            [queue removeObjectAtIndex:0];
-            if ([candidate isKindOfClass:[UIImageView class]] && ((UIImageView *)candidate).image && candidate.alpha > 0.01 && !candidate.hidden) {
-                glyph = ((UIImageView *)candidate).image;
-                break;
-            }
-            [queue addObjectsFromArray:candidate.subviews];
-        }
-        if (glyph) {
-            [proxy setImage:[glyph imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] forState:UIControlStateNormal];
-            proxy.tintColor = UIColor.whiteColor;
-            proxy.imageView.contentMode = UIViewContentModeScaleAspectFit;
-            proxy.imageView.transform = CGAffineTransformMakeScale(0.56, 0.56);
-        }
-    }
-    return proxy;
-}
-
 typedef struct {
     CGFloat inset;
     CGFloat gap;
