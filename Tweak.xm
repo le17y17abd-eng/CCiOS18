@@ -110,6 +110,23 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 #import <objc/message.h>
 
 static const NSInteger kCCiOS18EditorButtonTag = 180019;
+static char kCCiOS18LongPressGestureKey;
+
+@interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
+@end
+@implementation CCiOS18LongPressDelegate
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    return YES;
+}
+@end
+
+static CCiOS18LongPressDelegate *CCiOS18SharedLongPressDelegate(void) {
+    static CCiOS18LongPressDelegate *delegate;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ delegate = [CCiOS18LongPressDelegate new]; });
+    return delegate;
+}
 
 static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
     NSDictionary *known = @{
@@ -324,32 +341,27 @@ static NSArray<NSString *> *CCiOS18CurrentEnabledModuleOrder(void) {
         UIView *root = [(UIViewController *)self view];
         CCiOS18InstallBackdrop(root);
 
-        UIButton *editButton = (UIButton *)[root viewWithTag:kCCiOS18EditorButtonTag];
-        if (!editButton) {
-            editButton = [UIButton buttonWithType:UIButtonTypeSystem];
-            editButton.tag = kCCiOS18EditorButtonTag;
-            [editButton setTitle:@"Edit" forState:UIControlStateNormal];
-            [editButton setImage:[UIImage systemImageNamed:@"slider.horizontal.3"] forState:UIControlStateNormal];
-            editButton.tintColor = [UIColor whiteColor];
-            editButton.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
-            editButton.backgroundColor = [UIColor colorWithWhite:0.18 alpha:0.78];
-            editButton.layer.cornerRadius = 15.0;
-            editButton.layer.borderWidth = 0.7;
-            editButton.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.24].CGColor;
-            editButton.clipsToBounds = YES;
-            editButton.translatesAutoresizingMaskIntoConstraints = NO;
-            [editButton addTarget:self action:@selector(ccios18_openModuleOrderEditor) forControlEvents:UIControlEventTouchUpInside];
-            [root addSubview:editButton];
-            [NSLayoutConstraint activateConstraints:@[
-                [editButton.trailingAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.trailingAnchor constant:-18.0],
-                [editButton.topAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.topAnchor constant:10.0],
-                [editButton.widthAnchor constraintEqualToConstant:76.0],
-                [editButton.heightAnchor constraintEqualToConstant:34.0]
-            ]];
+        // iOS 18-style entry point: press and hold anywhere in Control Center.
+        // The recognizer does not cancel the native controls' touch handling.
+        UILongPressGestureRecognizer *longPress = (UILongPressGestureRecognizer *)objc_getAssociatedObject(self, &kCCiOS18LongPressGestureKey);
+        if (!longPress) {
+            longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_handleLongPress:)];
+            longPress.minimumPressDuration = 0.65;
+            longPress.cancelsTouchesInView = NO;
+            longPress.delaysTouchesBegan = NO;
+            longPress.delegate = CCiOS18SharedLongPressDelegate();
+            [root addGestureRecognizer:longPress];
+            objc_setAssociatedObject(self, &kCCiOS18LongPressGestureKey, longPress, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Backdrop/editor button exception: %@", exception);
     }
+}
+
+%new
+- (void)ccios18_handleLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    [self ccios18_openModuleOrderEditor];
 }
 
 %new
