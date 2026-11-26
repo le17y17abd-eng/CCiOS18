@@ -607,8 +607,14 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
     UIButton *add = (UIButton *)[root viewWithTag:kCCiOS18InlineAddTag];
     if (editing) {
         if (!done) {
-            done = CCiOS18MakeInlineButton(@"Done", kCCiOS18InlineDoneTag,
-                [UIColor colorWithRed:0.18 green:0.66 blue:0.36 alpha:0.96]);
+            done = [UIButton buttonWithType:UIButtonTypeSystem];
+            done.tag = kCCiOS18InlineDoneTag;
+            done.backgroundColor = UIColor.clearColor;
+            done.tintColor = UIColor.whiteColor;
+            UIImageSymbolConfiguration *checkConfig = [UIImageSymbolConfiguration configurationWithPointSize:23.0 weight:UIImageSymbolWeightSemibold];
+            [done setImage:[[UIImage systemImageNamed:@"checkmark" withConfiguration:checkConfig] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] forState:UIControlStateNormal];
+            done.accessibilityLabel = @"Done";
+            done.accessibilityHint = @"Finish Control Center editing";
             [done addTarget:self action:@selector(ccios18_finishInlineEditing) forControlEvents:UIControlEventTouchUpInside];
             [root addSubview:done];
         }
@@ -622,7 +628,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         }
         done.hidden = NO;
         add.hidden = NO;
-        done.frame = CGRectMake(CGRectGetWidth(root.bounds) - 82.0, root.safeAreaInsets.top + 8.0, 70.0, 34.0);
+        done.frame = CGRectMake(root.safeAreaInsets.left + 14.0, root.safeAreaInsets.top + 7.0, 40.0, 40.0);
         [add sizeToFit];
         add.frame = CGRectMake((CGRectGetWidth(root.bounds) - 142.0) * 0.5,
             CGRectGetHeight(root.bounds) - MAX(root.safeAreaInsets.bottom, 12.0) - 52.0, 142.0, 36.0);
