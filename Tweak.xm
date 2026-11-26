@@ -1947,10 +1947,11 @@ static void CCAUpdateSliderGlyphColor(UIView *slider, float value, BOOL animate)
         nativeGlyph = [UIImage systemImageNamed:symbolName withConfiguration:symbolConfiguration];
     } else {
         symbolState = @"brightness.variable";
-        if (NSProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 16) {
-            nativeGlyph = [UIImage systemImageNamed:@"sun.max.fill"
-                                       variableValue:variableValue
-                                    withConfiguration:symbolConfiguration];
+        SEL variableImageSelector = NSSelectorFromString(@"systemImageNamed:variableValue:withConfiguration:");
+        if ([UIImage respondsToSelector:variableImageSelector]) {
+            nativeGlyph = ((id (*)(id, SEL, id, CGFloat, id))objc_msgSend)(
+                UIImage.class, variableImageSelector, @"sun.max.fill",
+                (CGFloat)variableValue, symbolConfiguration);
         }
     }
     if (!nativeGlyph) {
