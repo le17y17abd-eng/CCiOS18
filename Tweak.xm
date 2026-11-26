@@ -129,20 +129,11 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
         @"com.apple.control-center.MusicRecognitionModule": @"Music Recognition",
         @"com.apple.control-center.ScreenMirroringModule": @"Screen Mirroring",
         @"com.apple.control-center.AirPlayMirroringModule": @"Screen Mirroring",
-        @"com.apple.control-center.HearingAidsModule": @"Hearing",
         @"com.apple.control-center.HomeControlCenterModule": @"Home",
-        @"com.apple.control-center.LowPowerModule": @"Low Power Mode",
         @"com.apple.control-center.AccessibilityModule": @"Accessibility",
-        @"com.apple.control-center.TextSizeModule": @"Text Size",
-        @"com.apple.control-center.DarkModeModule": @"Dark Mode",
         @"com.apple.control-center.BrightnessModule": @"Brightness",
         @"com.apple.control-center.VolumeModule": @"Volume",
-        @"com.apple.control-center.TimerModule": @"Timer",
-        @"com.apple.control-center.CalculatorModule": @"Calculator",
-        @"com.apple.control-center.CameraModule": @"Camera",
-        @"com.apple.control-center.FlashlightModule": @"Flashlight",
-        @"com.apple.control-center.CodeScannerModule": @"Code Scanner",
-        @"com.apple.control-center.ScreenRecordingModule": @"Screen Recording"
+        @"com.apple.control-center.TimerModule": @"Timer"
     };
     NSString *name = known[identifier];
     if (name.length) return name;
