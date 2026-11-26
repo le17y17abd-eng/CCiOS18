@@ -112,73 +112,86 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 
 %end
 
-// Connectivity layout: keep Apple's six real view controllers and their actions.
-// Only their compact-mode frames are adjusted. Expanded mode remains 100% native.
+// iOS 15 ConnectivityModule exposes the six native controllers as named
+// properties and keeps separate portrait/landscape controller arrays.
+// Use those native objects directly; never create replacement buttons.
 @interface CCUIConnectivityModuleViewController : UIViewController
 - (BOOL)isExpanded;
-- (NSArray *)buttonViewControllers;
+- (BOOL)_isPortrait;
+- (NSArray *)portraitButtonViewControllers;
+- (NSArray *)landscapeButtonViewControllers;
+- (UIViewController *)airplaneButton;
+- (UIViewController *)airDropButton;
+- (UIViewController *)wifiButton;
+- (UIViewController *)cellularDataButton;
+- (UIViewController *)bluetoothButton;
+- (UIViewController *)hotspotButton;
 @end
 
-static NSString *CCiOS18ConnectivityKind(UIViewController *controller) {
-    NSString *name = NSStringFromClass([controller class]).lowercaseString;
-    if ([name containsString:@"airdrop"]) return @"airdrop";
-    if ([name containsString:@"airplane"]) return @"airplane";
-    if ([name containsString:@"wifi"]) return @"wifi";
-    if ([name containsString:@"cellulardata"]) return @"cellular";
-    if ([name containsString:@"bluetooth"]) return @"bluetooth";
-    if ([name containsString:@"hotspot"]) return @"hotspot";
-    return nil;
+static void CCiOS18PlaceNativeButton(UIView *host, UIView *button, CGRect hostFrame) {
+    if (!host || !button || !button.superview) return;
+    UIView *parent = button.superview;
+    CGRect frame = (parent == host) ? hostFrame : [host convertRect:hostFrame toView:parent];
+    button.hidden = NO;
+    button.alpha = 1.0;
+    button.frame = frame;
 }
 
-static void CCiOS18ApplyConnectivityLayout(CCUIConnectivityModuleViewController *module) {
-    if (!module || module.isExpanded) return;
-
-    NSArray *controllers = [module buttonViewControllers];
-    if (![controllers isKindOfClass:[NSArray class]] || controllers.count < 6) return;
-
-    NSMutableDictionary *buttons = [NSMutableDictionary dictionary];
-    for (id item in controllers) {
-        if (![item isKindOfClass:[UIViewController class]]) continue;
-        NSString *kind = CCiOS18ConnectivityKind((UIViewController *)item);
-        if (kind && ((UIViewController *)item).view) buttons[kind] = ((UIViewController *)item).view;
-    }
-
-    // Fail closed: if this iOS build exposes a different controller set, leave Apple's layout untouched.
-    NSArray *required = @[@"airplane", @"airdrop", @"wifi", @"cellular", @"bluetooth", @"hotspot"];
-    for (NSString *kind in required) if (!buttons[kind]) return;
+static void CCiOS18ApplyNativeConnectivityLayout(CCUIConnectivityModuleViewController *module) {
+    if (!module || [module isExpanded]) return;
 
     UIView *host = module.view;
-    CGRect bounds = host.bounds;
-    CGFloat width = CGRectGetWidth(bounds);
-    CGFloat height = CGRectGetHeight(bounds);
-    if (width < 100.0 || height < 90.0) return;
+    if (!host || CGRectIsEmpty(host.bounds)) return;
 
-    CGFloat side = MIN(width, height);
-    CGFloat margin = MAX(4.0, side * 0.035);
-    CGFloat columnGap = MAX(3.0, side * 0.025);
-    CGFloat rowGap = MAX(4.0, side * 0.035);
-    CGFloat largeHeight = (height - (margin * 2.0) - rowGap) * 0.61;
-    CGFloat smallHeight = height - (margin * 2.0) - rowGap - largeHeight;
-    CGFloat largeWidth = (width - (margin * 2.0) - (columnGap * 2.0)) / 3.0;
-    CGFloat smallWidth = MIN(largeWidth * 0.72, (width - (margin * 2.0) - (columnGap * 2.0)) / 3.0);
-    CGFloat smallGap = (width - (smallWidth * 3.0)) / 4.0;
+    // Confirm the native compact-mode array is ready before changing geometry.
+    NSArray *nativeOrder = [module _isPortrait] ? [module portraitButtonViewControllers]
+                                                : [module landscapeButtonViewControllers];
+    if (![nativeOrder isKindOfClass:[NSArray class]] || nativeOrder.count < 6) return;
 
-    NSArray *largeKinds = @[@"airplane", @"airdrop", @"wifi"];
-    for (NSUInteger index = 0; index < largeKinds.count; index++) {
-        CGFloat x = margin + index * (largeWidth + columnGap);
-        UIView *button = buttons[largeKinds[index]];
-        button.hidden = NO;
-        button.alpha = 1.0;
-        button.frame = CGRectMake(x, margin, largeWidth, largeHeight);
+    UIViewController *airplane = [module airplaneButton];
+    UIViewController *airdrop = [module airDropButton];
+    UIViewController *wifi = [module wifiButton];
+    UIViewController *cellular = [module cellularDataButton];
+    UIViewController *bluetooth = [module bluetoothButton];
+    UIViewController *hotspot = [module hotspotButton];
+
+    NSArray *nativeButtons = @[airplane ?: (id)[NSNull null],
+                               airdrop ?: (id)[NSNull null],
+                               wifi ?: (id)[NSNull null],
+                               cellular ?: (id)[NSNull null],
+                               bluetooth ?: (id)[NSNull null],
+                               hotspot ?: (id)[NSNull null]];
+    for (id item in nativeButtons) {
+        if (item == [NSNull null] || ![nativeOrder containsObject:item]) return;
     }
 
-    NSArray *smallKinds = @[@"cellular", @"bluetooth", @"hotspot"];
-    for (NSUInteger index = 0; index < smallKinds.count; index++) {
-        CGFloat x = smallGap + index * (smallWidth + smallGap);
-        UIView *button = buttons[smallKinds[index]];
-        button.hidden = NO;
-        button.alpha = 1.0;
-        button.frame = CGRectMake(x, margin + largeHeight + rowGap, smallWidth, smallHeight);
+    CGFloat width = CGRectGetWidth(host.bounds);
+    CGFloat height = CGRectGetHeight(host.bounds);
+    if (width < 100.0 || height < 90.0) return;
+
+    CGFloat margin = MAX(4.0, MIN(width, height) * 0.035);
+    CGFloat columnGap = MAX(4.0, width * 0.025);
+    CGFloat rowGap = MAX(4.0, height * 0.035);
+    CGFloat usableWidth = width - 2.0 * margin;
+    CGFloat largeWidth = (usableWidth - 2.0 * columnGap) / 3.0;
+    CGFloat usableHeight = height - 2.0 * margin - rowGap;
+    CGFloat largeHeight = usableHeight * 0.60;
+    CGFloat smallHeight = usableHeight - largeHeight;
+    CGFloat smallWidth = largeWidth * 0.72;
+    CGFloat smallGap = (width - 3.0 * smallWidth) / 4.0;
+
+    NSArray *largeButtons = @[airplane, airdrop, wifi];
+    for (NSUInteger i = 0; i < largeButtons.count; i++) {
+        CGFloat x = margin + i * (largeWidth + columnGap);
+        CGRect frame = CGRectMake(x, margin, largeWidth, largeHeight);
+        CCiOS18PlaceNativeButton(host, ((UIViewController *)largeButtons[i]).view, frame);
+    }
+
+    NSArray *smallButtons = @[cellular, bluetooth, hotspot];
+    for (NSUInteger i = 0; i < smallButtons.count; i++) {
+        CGFloat x = smallGap + i * (smallWidth + smallGap);
+        CGRect frame = CGRectMake(x, margin + largeHeight + rowGap, smallWidth, smallHeight);
+        CCiOS18PlaceNativeButton(host, ((UIViewController *)smallButtons[i]).view, frame);
     }
 }
 
@@ -186,12 +199,13 @@ static void CCiOS18ApplyConnectivityLayout(CCUIConnectivityModuleViewController 
 
 %hook CCUIConnectivityModuleViewController
 
-- (void)viewDidLayoutSubviews {
+- (void)viewWillLayoutSubviews {
     %orig;
     @try {
-        // Apply after Apple's own Auto Layout pass; otherwise the native
-        // connectivity layout immediately restores all six tiles to equal size.
-        CCiOS18ApplyConnectivityLayout(self);
+        // Apple's native compact layout is complete here. Apply to its actual
+        // six named button controllers, in the same lifecycle used by
+        // established Control Center layout tweaks.
+        CCiOS18ApplyNativeConnectivityLayout(self);
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Connectivity layout exception: %@", exception);
     }
