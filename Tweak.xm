@@ -119,6 +119,10 @@ static const void *kCCAConnectivityForwardControlKey = &kCCAConnectivityForwardC
 static const void *kCCAConnectivityProxyPreparedKey = &kCCAConnectivityProxyPreparedKey;
 static const void *kCCAConnectivityProxyRefreshScheduledKey = &kCCAConnectivityProxyRefreshScheduledKey;
 
+static const void *kCCAConnectivityExpandedCardKey = &kCCAConnectivityExpandedCardKey;
+static const void *kCCAConnectivityExpandedSurfaceKey = &kCCAConnectivityExpandedSurfaceKey;
+static const void *kCCAConnectivityExpandedGridGlyphKey = &kCCAConnectivityExpandedGridGlyphKey;
+
 static UIView *CCAFindSubviewWithClassName(UIView *root, NSString *className) {
     if (!root) return nil;
     if ([NSStringFromClass(root.class) isEqualToString:className]) return root;
@@ -140,6 +144,67 @@ static UIViewController *CCAConnectivityChild(UIViewController *controller, NSSt
         [queue addObjectsFromArray:candidate.childViewControllers];
     }
     return nil;
+}
+
+static NSArray<UIView *> *CCACompactGlyphHosts(UIView *buttonView) {
+    if (!buttonView) return @[];
+    NSMutableArray<UIView *> *glyphHosts = [NSMutableArray array];
+    for (NSString *key in @[@"glyphImageView", @"_glyphImageView", @"glyphPackageView", @"_glyphPackageView"]) {
+        @try {
+            id candidate = [(id)buttonView valueForKey:key];
+            if ([candidate isKindOfClass:[UIView class]] && ![glyphHosts containsObject:candidate]) [glyphHosts addObject:candidate];
+        } @catch (__unused NSException *exception) {}
+    }
+    for (UIView *candidate in buttonView.subviews) {
+        NSString *className = NSStringFromClass(candidate.class);
+        if (([className isEqualToString:@"CCUICAPackageView"] || [candidate isKindOfClass:[UIImageView class]]) && ![glyphHosts containsObject:candidate]) {
+            [glyphHosts addObject:candidate];
+        }
+    }
+    return glyphHosts;
+}
+
+static void CCAResetConnectivityCompactTransforms(UIViewController *controller) {
+    if (!controller) return;
+    NSArray<NSString *> *classes = @[
+        @"CCUIConnectivityAirplaneViewController", @"CCUIConnectivityCellularDataViewController",
+        @"CCUIConnectivityWifiViewController", @"CCUIConnectivityBluetoothViewController",
+        @"CCUIConnectivityAirDropViewController", @"CCUIConnectivityHotspotViewController"
+    ];
+    [UIView performWithoutAnimation:^{
+        for (NSString *name in classes) {
+            UIViewController *child = CCAConnectivityChild(controller, name);
+            if (child) {
+                child.view.transform = CGAffineTransformIdentity;
+                UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
+                objc_setAssociatedObject(roundButton, kCCAConnectivityExpandedCardKey, nil, OBJC_ASSOCIATION_ASSIGN);
+                objc_setAssociatedObject(roundButton, kCCAConnectivityExpandedSurfaceKey, nil, OBJC_ASSOCIATION_ASSIGN);
+                objc_setAssociatedObject(roundButton, kCCAConnectivityExpandedGridGlyphKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                for (UIView *glyph in CCACompactGlyphHosts(roundButton)) glyph.transform = CGAffineTransformIdentity;
+            }
+        }
+        UIView *expand = [controller.view viewWithTag:kCCAConnectivityExpandButtonTag];
+        UIView *vpn = [controller.view viewWithTag:kCCAConnectivityMiniClusterTag];
+        UIView *airDropProxy = [controller.view viewWithTag:kCCAConnectivityCompactAirDropTag];
+        UIView *bluetoothProxy = [controller.view viewWithTag:kCCAConnectivityCompactBluetoothTag];
+        expand.hidden = YES;
+        vpn.hidden = YES;
+        airDropProxy.hidden = YES;
+        bluetoothProxy.hidden = YES;
+    }];
+}
+
+static void CCARestoreConnectivityContainerMaterial(UIView *root) {
+    UIView *container = root.superview;
+    while (container && ![NSStringFromClass(container.class) isEqualToString:@"CCUIContentModuleContentContainerView"]) container = container.superview;
+    if (!container) return;
+    for (UIView *child in container.subviews) {
+        NSString *name = NSStringFromClass(child.class);
+        if ([name containsString:@"Material"] || [child isKindOfClass:[UIVisualEffectView class]]) {
+            child.hidden = NO;
+            child.alpha = 1.0;
+        }
+    }
 }
 
 static UIImage *CCAConnectivityControlSnapshot(UIViewController *child, CGSize targetSize) {
@@ -315,6 +380,8 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
     UIButton *expand = (UIButton *)[root viewWithTag:kCCAConnectivityExpandButtonTag];
     UIView *miniCluster = [root viewWithTag:kCCAConnectivityMiniClusterTag];
     if (!compact) {
+        CCAResetConnectivityCompactTransforms(controller);
+        CCARestoreConnectivityContainerMaterial(root);
         [UIView performWithoutAnimation:^{
             for (UIViewController *child in children.allValues) {
                 child.view.transform = CGAffineTransformIdentity;
@@ -329,6 +396,8 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
         return;
     }
 
+    CCAResetConnectivityCompactTransforms(controller);
+    CCARestoreConnectivityContainerMaterial(root);
     CCAConnectivityCompactMetrics compactMetrics = CCAConnectivityCompactMetricsForBounds(root.bounds);
     NSDictionary<NSString *, NSValue *> *largeFrames = @{
         @"CCUIConnectivityAirplaneViewController": [NSValue valueWithCGRect:compactMetrics.topLeft],
