@@ -340,18 +340,24 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     if (editing) gCCiOS18InlineEditingOverlay = (UIViewController *)self;
     else if (gCCiOS18InlineEditingOverlay == (UIViewController *)self) gCCiOS18InlineEditingOverlay = nil;
 
+    NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
     for (UIViewController *module in CCiOS18InlineModules((UIViewController *)self)) {
+        NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
+        BOOL isUserEditable = identifier.length && [editableOrder containsObject:identifier];
         if (editing) {
-            UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
-            if (!pan) {
-                pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_inlineModulePanned:)];
-                pan.minimumNumberOfTouches = 1;
-                pan.maximumNumberOfTouches = 1;
-                pan.cancelsTouchesInView = NO;
-                pan.delegate = CCiOS18SharedLongPressDelegate();
-                objc_setAssociatedObject(pan, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
-                [module.view addGestureRecognizer:pan];
-                objc_setAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if (isUserEditable) {
+                UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
+                if (!pan) {
+                    pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_inlineModulePanned:)];
+                    pan.minimumNumberOfTouches = 1;
+                    pan.maximumNumberOfTouches = 1;
+                    pan.cancelsTouchesInView = NO;
+                    pan.delegate = CCiOS18SharedLongPressDelegate();
+                    objc_setAssociatedObject(pan, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
+                    [module.view addGestureRecognizer:pan];
+                    objc_setAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey, pan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+                pan.enabled = YES;
             }
             module.view.layer.borderWidth = 1.4;
             module.view.layer.borderColor = [UIColor colorWithRed:0.95 green:0.28 blue:0.27 alpha:0.9].CGColor;
@@ -361,7 +367,6 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
             module.view.layer.borderColor = nil;
             UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
             pan.enabled = NO;
-            pan.enabled = YES;
         }
     }
 
@@ -403,10 +408,11 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     if (![objc_getAssociatedObject(self, &kCCiOS18InlineEditingKey) boolValue]) return;
     UIView *root = [(UIViewController *)self view];
     NSArray<UIViewController *> *modules = CCiOS18InlineModules((UIViewController *)self);
+    NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
     NSMutableSet *validIdentifiers = [NSMutableSet new];
     for (UIViewController *module in modules) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
-        if (identifier.length) [validIdentifiers addObject:identifier];
+        if (identifier.length && [editableOrder containsObject:identifier]) [validIdentifiers addObject:identifier];
     }
     for (UIView *view in [root.subviews copy]) {
         if (view.tag == kCCiOS18InlineRemoveTag &&
@@ -414,7 +420,7 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     }
     for (UIViewController *module in modules) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
-        if (!identifier.length) continue;
+        if (!identifier.length || ![editableOrder containsObject:identifier]) continue;
         UIButton *remove = nil;
         for (UIView *candidate in root.subviews) {
             if (candidate.tag == kCCiOS18InlineRemoveTag &&
@@ -528,14 +534,15 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         CGPoint drop = snapshot ? snapshot.center : [gesture locationInView:root];
         UIViewController *targetModule = nil;
         CGFloat bestDistance = CGFLOAT_MAX;
+        NSArray<NSString *> *current = CCiOS18CurrentEnabledModuleOrder();
         for (UIViewController *candidate in CCiOS18InlineModules(overlay)) {
-            if (candidate.view == source) continue;
+            NSString *candidateIdentifier = CCiOS18IdentifierFromObject(candidate, 0);
+            if (candidate.view == source || ![current containsObject:candidateIdentifier]) continue;
             CGPoint center = [candidate.view.superview convertPoint:candidate.view.center toView:root];
             CGFloat distance = hypot(center.x - drop.x, center.y - drop.y);
             if (distance < bestDistance) { bestDistance = distance; targetModule = candidate; }
         }
-        NSArray<NSString *> *current = CCiOS18CurrentEnabledModuleOrder();
-        if (dragged.length && targetModule && bestDistance < 180.0 && current.count > 1) {
+        if (dragged.length && targetModule && bestDistance < 180.0 && current.count > 1 && [current containsObject:dragged]) {
             NSString *target = CCiOS18IdentifierFromObject(targetModule, 0);
             NSMutableArray *updated = [current mutableCopy];
             [updated removeObject:dragged];
