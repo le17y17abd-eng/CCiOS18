@@ -13,6 +13,7 @@
 - (void)ccios18_showInlineAddControls;
 - (void)ccios18_inlineModulePanned:(UIPanGestureRecognizer *)gesture;
 - (void)ccios18_inlineModulePinched:(UIPinchGestureRecognizer *)gesture;
+- (void)ccios18_resizeHandlePanned:(UIPanGestureRecognizer *)gesture;
 - (void)ccios18_finishInlineEditing;
 @end
 
@@ -121,6 +122,7 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 static const NSInteger kCCiOS18InlineRemoveTag = 180020;
 static const NSInteger kCCiOS18InlineDoneTag = 180021;
 static const NSInteger kCCiOS18InlineAddTag = 180022;
+static const NSInteger kCCiOS18InlineResizeTag = 180023;
 static char kCCiOS18LongPressGestureKey;
 static char kCCiOS18InlinePanGestureKey;
 static char kCCiOS18InlineEditingKey;
@@ -133,6 +135,8 @@ static char kCCiOS18InlineScrollEnabledKey;
 static char kCCiOS18InlineScrollOffsetKey;
 static char kCCiOS18InlinePinchGestureKey;
 static char kCCiOS18InlinePinchBaseScaleKey;
+static char kCCiOS18InlineResizePanKey;
+static char kCCiOS18InlineResizeStartKey;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
 @end
@@ -446,7 +450,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         [done removeFromSuperview];
         [add removeFromSuperview];
         for (UIView *view in [root.subviews copy]) {
-            if (view.tag == kCCiOS18InlineRemoveTag) [view removeFromSuperview];
+            if (view.tag == kCCiOS18InlineRemoveTag || view.tag == kCCiOS18InlineResizeTag) [view removeFromSuperview];
         }
     }
 }
@@ -463,7 +467,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         if (identifier.length && [editableOrder containsObject:identifier]) [validIdentifiers addObject:identifier];
     }
     for (UIView *view in [root.subviews copy]) {
-        if (view.tag == kCCiOS18InlineRemoveTag &&
+        if ((view.tag == kCCiOS18InlineRemoveTag || view.tag == kCCiOS18InlineResizeTag) &&
             ![validIdentifiers containsObject:view.accessibilityIdentifier]) [view removeFromSuperview];
     }
     for (UIViewController *module in modules) {
@@ -494,6 +498,43 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         remove.frame = CGRectMake(CGRectGetMinX(frame) - 7.0, CGRectGetMinY(frame) - 7.0, 25.0, 25.0);
         remove.hidden = NO;
         [root bringSubviewToFront:remove];
+
+        UIView *resize = nil;
+        for (UIView *candidate in root.subviews) {
+            if (candidate.tag == kCCiOS18InlineResizeTag &&
+                [candidate.accessibilityIdentifier isEqualToString:identifier]) { resize = candidate; break; }
+        }
+        if (!resize) {
+            resize = [[UIView alloc] initWithFrame:CGRectZero];
+            resize.tag = kCCiOS18InlineResizeTag;
+            resize.accessibilityIdentifier = identifier;
+            resize.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.94];
+            resize.layer.cornerRadius = 11.0;
+            resize.layer.borderWidth = 0.8;
+            resize.layer.borderColor = [UIColor colorWithWhite:0.72 alpha:0.9].CGColor;
+            resize.layer.shadowColor = UIColor.blackColor.CGColor;
+            resize.layer.shadowOpacity = 0.16;
+            resize.layer.shadowRadius = 2.0;
+            resize.layer.shadowOffset = CGSizeMake(0, 1);
+            UIImageView *grip = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right"]];
+            grip.tintColor = [UIColor colorWithWhite:0.25 alpha:1.0];
+            grip.contentMode = UIViewContentModeScaleAspectFit;
+            grip.frame = CGRectMake(5.0, 5.0, 12.0, 12.0);
+            grip.userInteractionEnabled = NO;
+            [resize addSubview:grip];
+            UIPanGestureRecognizer *resizePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_resizeHandlePanned:)];
+            resizePan.minimumNumberOfTouches = 1;
+            resizePan.maximumNumberOfTouches = 1;
+            resizePan.cancelsTouchesInView = YES;
+            resizePan.delegate = CCiOS18SharedLongPressDelegate();
+            objc_setAssociatedObject(resizePan, &kCCiOS18InlineOverlayKey, self, OBJC_ASSOCIATION_ASSIGN);
+            [resize addGestureRecognizer:resizePan];
+            objc_setAssociatedObject(resize, &kCCiOS18InlineResizePanKey, resizePan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            [root addSubview:resize];
+        }
+        resize.frame = CGRectMake(CGRectGetMaxX(frame) - 17.0, CGRectGetMaxY(frame) - 17.0, 22.0, 22.0);
+        resize.hidden = NO;
+        [root bringSubviewToFront:resize];
     }
     UIButton *done = (UIButton *)[root viewWithTag:kCCiOS18InlineDoneTag];
     UIButton *add = (UIButton *)[root viewWithTag:kCCiOS18InlineAddTag];
@@ -632,6 +673,42 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self ccios18_refreshInlineEditor];
+    }
+}
+
+%new
+- (void)ccios18_resizeHandlePanned:(UIPanGestureRecognizer *)gesture {
+    UIView *handle = gesture.view;
+    if (!handle) return;
+    NSString *identifier = handle.accessibilityIdentifier;
+    UIViewController *module = nil;
+    for (UIViewController *candidate in CCiOS18InlineModules((UIViewController *)self)) {
+        if ([CCiOS18IdentifierFromObject(candidate, 0) isEqualToString:identifier]) { module = candidate; break; }
+    }
+    if (!module || !identifier.length) return;
+    UIView *moduleView = module.view;
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeStartKey,
+            [NSValue valueWithCGPoint:[gesture locationInView:moduleView]], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        NSValue *startValue = objc_getAssociatedObject(handle, &kCCiOS18InlineResizeStartKey);
+        CGPoint start = startValue ? startValue.CGPointValue : CGPointZero;
+        CGPoint current = [gesture locationInView:moduleView];
+        CGFloat base = CCiOS18SavedScaleForIdentifier(identifier);
+        CGFloat delta = ((current.x - start.x) + (current.y - start.y)) / MAX(120.0, (CGRectGetWidth(moduleView.bounds) + CGRectGetHeight(moduleView.bounds)) * 0.5);
+        CGFloat scale = MAX(0.55, MIN(1.65, base + delta));
+        moduleView.transform = CGAffineTransformMakeScale(scale, scale);
+        [self ccios18_refreshInlineEditor];
+    } else if (gesture.state == UIGestureRecognizerStateEnded) {
+        CGFloat scale = MAX(0.55, MIN(1.65, moduleView.transform.a));
+        NSString *key = [@"CCiOS18ModuleScale." stringByAppendingString:identifier];
+        [[NSUserDefaults standardUserDefaults] setFloat:scale forKey:key];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeStartKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self ccios18_refreshInlineEditor];
+    } else if (gesture.state == UIGestureRecognizerStateCancelled || gesture.state == UIGestureRecognizerStateFailed) {
+        CGFloat scale = CCiOS18SavedScaleForIdentifier(identifier);
+        moduleView.transform = CGAffineTransformMakeScale(scale, scale);
     }
 }
 
