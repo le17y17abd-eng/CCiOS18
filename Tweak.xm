@@ -127,6 +127,7 @@ static char kCCiOS18InlineOverlayKey;
 static char kCCiOS18InlineDragSnapshotKey;
 static char kCCiOS18InlineDragSourceKey;
 static char kCCiOS18InlineDragIdentifierKey;
+static char kCCiOS18InlineScrollEnabledKey;
 static __weak UIViewController *gCCiOS18InlineEditingOverlay = nil;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
@@ -148,8 +149,7 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherG
     UIView *view = touch.view;
     while (view) {
         if ([view isKindOfClass:[UISlider class]] ||
-            CCiOS18ClassContains(view, @"Slider") ||
-            CCiOS18ClassContains(view, @"ScrollView")) return NO;
+            CCiOS18ClassContains(view, @"Slider")) return NO;
         view = view.superview;
     }
     return YES;
@@ -365,6 +365,20 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     for (UIViewController *module in CCiOS18InlineModules((UIViewController *)self)) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
         BOOL isUserEditable = identifier.length && [editableOrder containsObject:identifier];
+        for (UIView *ancestor = module.view.superview; ancestor; ancestor = ancestor.superview) {
+            if (![ancestor isKindOfClass:[UIScrollView class]]) continue;
+            NSNumber *originalScrollEnabled = objc_getAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey);
+            if (editing) {
+                if (!originalScrollEnabled) {
+                    objc_setAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey,
+                        @( ((UIScrollView *)ancestor).scrollEnabled ), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                }
+                ((UIScrollView *)ancestor).scrollEnabled = NO;
+            } else if (originalScrollEnabled) {
+                ((UIScrollView *)ancestor).scrollEnabled = originalScrollEnabled.boolValue;
+                objc_setAssociatedObject(ancestor, &kCCiOS18InlineScrollEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+        }
         if (editing) {
             if (isUserEditable) {
                 UIPanGestureRecognizer *pan = objc_getAssociatedObject(module.view, &kCCiOS18InlinePanGestureKey);
