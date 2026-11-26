@@ -128,7 +128,6 @@ static char kCCiOS18InlineDragSnapshotKey;
 static char kCCiOS18InlineDragSourceKey;
 static char kCCiOS18InlineDragIdentifierKey;
 static char kCCiOS18InlineScrollEnabledKey;
-static __weak UIViewController *gCCiOS18InlineEditingOverlay = nil;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
 @end
@@ -335,9 +334,6 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
 - (void)ccios18_setInlineEditing:(BOOL)editing {
     UIView *root = [(UIViewController *)self view];
     objc_setAssociatedObject(self, &kCCiOS18InlineEditingKey, @(editing), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (editing) gCCiOS18InlineEditingOverlay = (UIViewController *)self;
-    else if (gCCiOS18InlineEditingOverlay == (UIViewController *)self) gCCiOS18InlineEditingOverlay = nil;
-
     NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
     for (UIViewController *module in CCiOS18InlineModules((UIViewController *)self)) {
         NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
