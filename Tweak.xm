@@ -954,12 +954,7 @@ static CCiOS18GridSize CCiOS18ResizeCandidateForIdentifier(NSString *identifier,
         NSArray *saved = gCCiOS18CustomGridSizes[identifier];
         CCiOS18GridSize start = saved.count >= 2 ? (CCiOS18GridSize){[saved[0] unsignedIntegerValue],[saved[1] unsignedIntegerValue]} : baseSize;
         CGPoint translation = [gesture translationInView:self.view];
-        CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
-        CGFloat dx = translation.x / step, dy = translation.y / step;
-        CCiOS18GridSize candidate = start;
-        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation); else if (baseSize.width == 2 && baseSize.height == 2) {
-            if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
-        }
+        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation);
         CGFloat width = candidate.width * kCCiOS18GridCell + (candidate.width-1) * kCCiOS18GridGap;
         CGFloat height = candidate.height * kCCiOS18GridCell + (candidate.height-1) * kCCiOS18GridGap;
         CGRect frame = [moduleView convertRect:moduleView.bounds toView:self.view];
@@ -972,12 +967,7 @@ static CCiOS18GridSize CCiOS18ResizeCandidateForIdentifier(NSString *identifier,
         NSArray *saved = gCCiOS18CustomGridSizes[identifier];
         CCiOS18GridSize start = saved.count >= 2 ? (CCiOS18GridSize){[saved[0] unsignedIntegerValue],[saved[1] unsignedIntegerValue]} : baseSize;
         CGPoint translation = [gesture translationInView:self.view];
-        CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
-        CCiOS18GridSize candidate = start;
-        CGFloat dx = translation.x / step, dy = translation.y / step;
-        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation); else if (baseSize.width == 2 && baseSize.height == 2) {
-            if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
-        }
+        CCiOS18GridSize candidate = CCiOS18ResizeCandidateForIdentifier(identifier, baseSize, start, translation);
         if (candidate.width != start.width || candidate.height != start.height) {
             CCiOS18ApplyGridResize(identifier, candidate, (UIViewController *)self);
         }
