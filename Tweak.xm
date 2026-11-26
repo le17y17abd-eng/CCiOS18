@@ -6055,20 +6055,13 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
     }
     if (!collection) return;
     UIView *sourceView = sender.superview ?: sender;
-    if (sourceView.window) {
-        gCCAConnectivityProxySourceView = sourceView;
-        gCCAConnectivityProxySourceWindowFrame = CCAConnectivityScreenFrameForView(sourceView);
-        gCCAConnectivityProxySourceCornerRadius = sourceView.layer.cornerRadius > 1.0 ? sourceView.layer.cornerRadius : 32.0;
-        gCCAConnectivityHasProxySourceFrame = CGRectGetWidth(gCCAConnectivityProxySourceWindowFrame) > 1.0 &&
-                                             CGRectGetHeight(gCCAConnectivityProxySourceWindowFrame) > 1.0;
-        gCCAConnectivityProxyExpansionActive = gCCAConnectivityHasProxySourceFrame;
-    } else {
-        gCCAConnectivityProxySourceView = nil;
-        gCCAConnectivityProxySourceWindowFrame = CGRectZero;
-        gCCAConnectivityProxySourceCornerRadius = 32.0;
-        gCCAConnectivityHasProxySourceFrame = NO;
-        gCCAConnectivityProxyExpansionActive = NO;
-    }
+    // Do not morph Apple's expanded module from our compact tile.
+    // Let Control Center present its own untouched native expansion.
+    gCCAConnectivityProxySourceView = nil;
+    gCCAConnectivityProxySourceWindowFrame = CGRectZero;
+    gCCAConnectivityProxySourceCornerRadius = 32.0;
+    gCCAConnectivityHasProxySourceFrame = NO;
+    gCCAConnectivityProxyExpansionActive = NO;
     CCAHaptic();
     ((void (*)(id, SEL, id))objc_msgSend)((id)collection, expand, @"com.apple.control-center.ConnectivityModule");
 }
@@ -11041,23 +11034,9 @@ static CGRect CCAExpandedConnectivityFrameForClass(NSString *className, CGSize c
     return CGRectNull;
 }
 
-static void CCAConfigureExpandedConnectivityChild(UIViewController *child) {
-    if (!gEnabled || !gCCAExpandedModuleOpen || !child.view) return;
-    UIViewController *parent = child.parentViewController;
-    if (![NSStringFromClass(parent.class) isEqualToString:@"CCUIConnectivityModuleViewController"] || CGRectGetWidth(parent.view.bounds) < 250.0) return;
-    CGRect frame = CCAExpandedConnectivityFrameForClass(NSStringFromClass(child.class), parent.view.bounds.size);
-    if (CGRectIsNull(frame)) return;
-    [UIView performWithoutAnimation:^{
-        if (!CGRectEqualToRect(child.view.frame, frame)) child.view.frame = frame;
-        NSArray<NSString *> *order = @[
-            @"CCUIConnectivityAirplaneViewController", @"CCUIConnectivityWifiViewController",
-            @"CCUIConnectivityAirDropViewController", @"CCUIConnectivityCellularDataViewController",
-            @"CCUIConnectivityBluetoothViewController", @"CCUIConnectivityHotspotViewController"
-        ];
-        NSUInteger index = [order indexOfObject:NSStringFromClass(child.class)];
-        UIView *card = index == NSNotFound ? nil : [parent.view viewWithTag:kCCAConnectivityExpandedCardBaseTag + (NSInteger)index];
-        CCAStyleExpandedConnectivityChild(child, card, frame);
-    }];
+static void CCAConfigureExpandedConnectivityChild(__unused UIViewController *child) {
+    // Keep Apple's expanded Connectivity module completely native.
+    // Do not reposition, restyle, or wrap its six system controls.
 }
 
 %hook MRUNowPlayingView
