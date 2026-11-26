@@ -384,7 +384,7 @@ static void CCAFinishConnectivityClosingTransition(UIViewController *controller)
 static void CCAConfigureConnectivityLayout(UIViewController *controller);
 static UIView *CCANewConnectivityMaterialView(UIView *root);
 static void CCAConfigureNowPlayingLayout(UIView *nowPlayingView);
-static CGRect CCAExpandedConnectivityFrameForClass(NSString *className, CGSize containerSize);
+static __attribute__((unused)) CGRect CCAExpandedConnectivityFrameForClass(NSString *className, CGSize containerSize);
 static CGRect CCAConnectivityScreenFrameForView(UIView *view);
 static void CCAOpenPendingConnectivityDetailFromPresentation(UIPresentationController *presentationController);
 static void CCAInstallStandaloneConnectivityDetailMethod(void);
@@ -10683,7 +10683,7 @@ static void CCAApplyConnectivityCaret(UILabel *subtitle, NSString *text) {
     subtitle.attributedText = value;
 }
 
-static void CCAStyleExpandedConnectivityChild(UIViewController *child, UIView *card, CGRect frame) {
+static __attribute__((unused)) void CCAStyleExpandedConnectivityChild(UIViewController *child, UIView *card, CGRect frame) {
     if (!child.view || CGRectIsNull(frame)) return;
     UIView *labeled = CCAConnectivityLabeledButton(child);
     UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
