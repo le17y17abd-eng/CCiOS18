@@ -186,9 +186,11 @@ static void CCiOS18ApplyConnectivityLayout(CCUIConnectivityModuleViewController 
 
 %hook CCUIConnectivityModuleViewController
 
-- (void)viewWillLayoutSubviews {
+- (void)viewDidLayoutSubviews {
     %orig;
     @try {
+        // Apply after Apple's own Auto Layout pass; otherwise the native
+        // connectivity layout immediately restores all six tiles to equal size.
         CCiOS18ApplyConnectivityLayout(self);
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Connectivity layout exception: %@", exception);
