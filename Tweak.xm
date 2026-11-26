@@ -6971,7 +6971,7 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
     UIVisualEffectView *border = objc_getAssociatedObject(moduleView, @selector(applyEditingToModule:editing:));
     UIButton *resizeButton = objc_getAssociatedObject(moduleView, kCCAResizeButtonKey);
     [UIView animateWithDuration:0.28 animations:^{
-        blur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+        blur.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThickMaterial];
         moduleView.transform = CGAffineTransformMakeScale(0.88, 0.88);
         moduleView.alpha = 0.0;
         border.alpha = 0.0;
@@ -11643,7 +11643,7 @@ static void CCAConfigureExpandedConnectivityChild(UIViewController *child) {
         glass.userInteractionEnabled = NO;
         glass.backgroundColor = UIColor.clearColor;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        glass.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
+        glass.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.22];
         [nativeButtonView insertSubview:glass atIndex:0];
     }
     glass.frame = nativeButtonView.bounds;
