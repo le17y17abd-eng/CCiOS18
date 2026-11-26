@@ -483,42 +483,6 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     return button;
 }
 
-static void CCiOS18SetSingleScrollViewForEditing(UIScrollView *scroll, BOOL editing) {
-    if (!scroll) return;
-    NSNumber *wasEnabled = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey);
-    NSValue *savedOffset = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey);
-    if (editing) {
-        if (!wasEnabled) {
-            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, @(scroll.scrollEnabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, [NSValue valueWithCGPoint:scroll.contentOffset], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        if (!objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey)) {
-            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey, @(scroll.panGestureRecognizer.enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        scroll.panGestureRecognizer.enabled = NO;
-        scroll.scrollEnabled = NO;
-        scroll.contentOffset = savedOffset ? savedOffset.CGPointValue : scroll.contentOffset;
-    } else if (wasEnabled) {
-        NSNumber *panEnabled = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey);
-        scroll.scrollEnabled = wasEnabled.boolValue;
-        if (panEnabled) scroll.panGestureRecognizer.enabled = panEnabled.boolValue;
-        if (savedOffset) [scroll setContentOffset:savedOffset.CGPointValue animated:NO];
-        objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-}
-static void CCiOS18SetScrollViewsForEditing(UIView *view, BOOL editing) {
-    if (!view) return;
-    if ([view isKindOfClass:[UIScrollView class]]) CCiOS18SetSingleScrollViewForEditing((UIScrollView *)view, editing);
-    for (UIView *child in view.subviews) CCiOS18SetScrollViewsForEditing(child, editing);
-}
-static void CCiOS18SetAncestorScrollViewsForEditing(UIView *view, BOOL editing) {
-    for (UIView *ancestor = view ? view.superview : nil; ancestor; ancestor = ancestor.superview) {
-        if ([ancestor isKindOfClass:[UIScrollView class]]) CCiOS18SetSingleScrollViewForEditing((UIScrollView *)ancestor, editing);
-    }
-}
-
 static char kCCiOS18NativeGesturesDisabledKey;
 static char kCCiOS18OwnGestureKey;
 
