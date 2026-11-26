@@ -6,6 +6,13 @@
 
 // The Logos hook below adds methods to this private UIKit controller.
 @interface CCUIModularControlCenterOverlayViewController : UIViewController
+- (void)ccios18_handleLongPress:(UILongPressGestureRecognizer *)gesture;
+- (void)ccios18_setInlineEditing:(BOOL)editing;
+- (void)ccios18_refreshInlineEditor;
+- (void)ccios18_removeInlineControl:(UIButton *)sender;
+- (void)ccios18_showInlineAddControls;
+- (void)ccios18_inlineModulePanned:(UIPanGestureRecognizer *)gesture;
+- (void)ccios18_finishInlineEditing;
 @end
 
 // CCiOS18 — iOS 15 native Control Center visual layer.
