@@ -38,7 +38,7 @@ static CGFloat const kCCiOS18GridCell = 67.0;
 static CGFloat const kCCiOS18GridGap = 12.0;
 static NSString * const kCCiOS18GridPrefsDomain = @"com.le17y17abd-eng.ccios18";
 static void CCiOS18LoadGridPreferences(void) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kCCiOS18GridPrefsDomain] ?: [NSUserDefaults standardUserDefaults];
     NSDictionary *sizes = [defaults dictionaryForKey:@"CCiOS18ModuleGridSizes"];
     NSDictionary *origins = [defaults dictionaryForKey:@"CCiOS18ModuleGridOrigins"];
     gCCiOS18CustomGridSizes = [sizes mutableCopy] ?: [NSMutableDictionary new];
@@ -47,10 +47,19 @@ static void CCiOS18LoadGridPreferences(void) {
     if (!gCCiOS18NativeGridRects) gCCiOS18NativeGridRects = [NSMutableDictionary new];
 }
 static void CCiOS18SaveGridPreferences(void) {
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kCCiOS18GridPrefsDomain] ?: [NSUserDefaults standardUserDefaults];
     [defaults setObject:[gCCiOS18CustomGridSizes copy] ?: @{} forKey:@"CCiOS18ModuleGridSizes"];
     [defaults setObject:[gCCiOS18CustomGridOrigins copy] ?: @{} forKey:@"CCiOS18ModuleGridOrigins"];
     [defaults synchronize];
+}
+static UIViewController *CCiOS18FindCollectionController(UIViewController *root) {
+    if (!root) return nil;
+    if (CCiOS18ClassContains(root, @"CCUIModuleCollectionViewController")) return root;
+    for (UIViewController *child in root.childViewControllers) {
+        UIViewController *found = CCiOS18FindCollectionController(child);
+        if (found) return found;
+    }
+    return nil;
 }
 static BOOL CCiOS18GridRectsOverlap(CCiOS18GridRect a, CCiOS18GridRect b) {
     return a.origin.x < b.origin.x + b.size.width && b.origin.x < a.origin.x + a.size.width &&
@@ -137,10 +146,7 @@ static BOOL CCiOS18ApplyGridResize(NSString *sourceID, CCiOS18GridSize newSize, 
         if ([context respondsToSelector:request]) ((void (*)(id, SEL))objc_msgSend)(context, request);
         break;
     }
-    UIViewController *collection = nil;
-    for (UIViewController *child in overlay.childViewControllers) {
-        if (CCiOS18ClassContains(child, @"CCUIModuleCollectionViewController")) { collection = child; break; }
-    }
+    UIViewController *collection = CCiOS18FindCollectionController(overlay);
     [collection.view setNeedsLayout];
     [collection.view layoutIfNeeded];
     return YES;
@@ -300,6 +306,7 @@ static char kCCiOS18InlineDragIdentifierKey;
 static char kCCiOS18InlineDragOffsetKey;
 static char kCCiOS18InlineScrollEnabledKey;
 static char kCCiOS18InlineScrollOffsetKey;
+static char kCCiOS18InlineScrollPanEnabledKey;
 static char kCCiOS18InlinePinchGestureKey;
 static char kCCiOS18InlinePinchBaseScaleKey;
 static char kCCiOS18InlineResizePanKey;
@@ -487,10 +494,17 @@ static void CCiOS18SetScrollViewsForEditing(UIView *view, BOOL editing) {
                 objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, @(scroll.scrollEnabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, [NSValue valueWithCGPoint:scroll.contentOffset], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             }
+            if (!objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey)) {
+                objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey, @(scroll.panGestureRecognizer.enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            scroll.panGestureRecognizer.enabled = NO;
             scroll.scrollEnabled = NO;
         } else if (wasEnabled) {
+            NSNumber *panEnabled = objc_getAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey);
             scroll.scrollEnabled = wasEnabled.boolValue;
+            if (panEnabled) scroll.panGestureRecognizer.enabled = panEnabled.boolValue;
             if (savedOffset) [scroll setContentOffset:savedOffset.CGPointValue animated:NO];
+            objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollPanEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollEnabledKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             objc_setAssociatedObject(scroll, &kCCiOS18InlineScrollOffsetKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
