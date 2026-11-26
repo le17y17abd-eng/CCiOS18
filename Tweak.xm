@@ -78,19 +78,31 @@ static void CCiOS18StyleSliderViews(UIView *container) {
         UIView *container = (UIView *)self;
         BOOL hasSlider = CCiOS18TreeContainsClassPart(container, @"CCUIContinuousSliderView") ||
                          CCiOS18TreeContainsClassPart(container, @"CCUISteppedSliderView");
+        BOOL isConnectivityTile = CCiOS18TreeContainsClassPart(container, @"Connectivity");
         CGFloat radius = CCiOS18RadiusForContainer(container, hasSlider);
+
+        // Modernize only the outside shell of the compact Wi-Fi/Bluetooth tile.
+        // Native controls, touch handling, and expanded/long-press content remain untouched.
+        if (isConnectivityTile && CGRectGetWidth(container.bounds) < 220.0 &&
+            CGRectGetHeight(container.bounds) < 220.0) {
+            CGFloat minSide = MIN(CGRectGetWidth(container.bounds), CGRectGetHeight(container.bounds));
+            radius = MIN(28.0, minSide * 0.25);
+            container.layer.borderWidth = 1.0;
+            container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
+            container.backgroundColor = [UIColor colorWithWhite:0.13 alpha:0.24];
+        } else {
+            container.layer.borderWidth = 0.8;
+            container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.19].CGColor;
+            UIColor *currentBackground = container.backgroundColor;
+            if (!currentBackground || CGColorGetAlpha(currentBackground.CGColor) > 0.85) {
+                container.backgroundColor = [UIColor colorWithWhite:0.16 alpha:0.18];
+            }
+        }
 
         container.layer.cornerRadius = radius;
         if (@available(iOS 13.0, *)) container.layer.cornerCurve = kCACornerCurveContinuous;
-        container.layer.borderWidth = 0.8;
-        container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.19].CGColor;
         container.layer.masksToBounds = YES;
         container.clipsToBounds = YES;
-
-        UIColor *currentBackground = container.backgroundColor;
-        if (!currentBackground || CGColorGetAlpha(currentBackground.CGColor) > 0.85) {
-            container.backgroundColor = [UIColor colorWithWhite:0.16 alpha:0.18];
-        }
         CCiOS18StyleSliderViews(container);
     } @catch (NSException *exception) {
         NSLog(@"[CCiOS18] Module styling exception: %@", exception);
