@@ -1,6 +1,6 @@
 Package: com.le17y17abd-eng.ccios18
 Name: CCiOS18
-Version: 0.4.1
+Version: 0.4.2
 Architecture: iphoneos-arm64
 Description: Native connectivity layout and iOS 18-inspired glass styling for iOS 15 Control Center.
 Maintainer: le17y17abd-eng
