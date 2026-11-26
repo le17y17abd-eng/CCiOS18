@@ -11633,8 +11633,9 @@ static void CCAConfigureExpandedConnectivityChild(UIViewController *child) {
     // Install the glass after the native button has completed its own layout.
     // Doing this here guarantees non-zero bounds and survives Control Center's
     // repeated relayouts/recreation of compact button contents.
+    UIView *nativeButtonView = (UIView *)(id)self;
     static NSInteger const kCCALiquidGlassButtonTag = 181060;
-    UIVisualEffectView *glass = (UIVisualEffectView *)[self viewWithTag:kCCALiquidGlassButtonTag];
+    UIVisualEffectView *glass = (UIVisualEffectView *)[nativeButtonView viewWithTag:kCCALiquidGlassButtonTag];
     if (![glass isKindOfClass:[UIVisualEffectView class]]) {
         glass = [[UIVisualEffectView alloc] initWithEffect:
                  [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]];
@@ -11643,18 +11644,21 @@ static void CCAConfigureExpandedConnectivityChild(UIViewController *child) {
         glass.backgroundColor = UIColor.clearColor;
         glass.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         glass.contentView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.16];
-        [self insertSubview:glass atIndex:0];
+        [nativeButtonView insertSubview:glass atIndex:0];
     }
-    glass.frame = self.bounds;
-    CGFloat glassRadius = MIN(18.0, MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.5);
+    glass.frame = nativeButtonView.bounds;
+    CGFloat glassWidth = CGRectGetWidth(nativeButtonView.bounds);
+    CGFloat glassHeight = CGRectGetHeight(nativeButtonView.bounds);
+    CGFloat glassRadius = glassWidth < glassHeight ? glassWidth * 0.5 : glassHeight * 0.5;
+    if (glassRadius > 18.0) glassRadius = 18.0;
     glass.layer.cornerRadius = glassRadius;
     glass.layer.cornerCurve = kCACornerCurveContinuous;
     glass.clipsToBounds = YES;
     glass.layer.masksToBounds = YES;
-    self.layer.cornerRadius = glassRadius;
-    self.layer.cornerCurve = kCACornerCurveContinuous;
-    self.layer.borderWidth = 0.8;
-    self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.32].CGColor;
+    nativeButtonView.layer.cornerRadius = glassRadius;
+    nativeButtonView.layer.cornerCurve = kCACornerCurveContinuous;
+    nativeButtonView.layer.borderWidth = 0.8;
+    nativeButtonView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.32].CGColor;
 
     // resizePanned: applies the presentation exactly when the logical size
     // crosses a valid endpoint. Re-entering it for every intermediate layout
