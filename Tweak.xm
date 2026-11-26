@@ -4,6 +4,10 @@
 #import <math.h>
 #import <objc/message.h>
 
+// The Logos hook below adds methods to this private UIKit controller.
+@interface CCUIModularControlCenterOverlayViewController : UIViewController
+@end
+
 // CCiOS18 — iOS 15 native Control Center visual layer.
 // Original Apple modules and their actions are retained.
 
