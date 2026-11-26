@@ -113,6 +113,16 @@ static const NSInteger kCCiOS18EditorButtonTag = 180019;
 
 static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
     NSDictionary *known = @{
+        @"com.apple.control-center.FlashlightModule": @"Flashlight",
+        @"com.apple.mobiletimer.controlcenter.timer": @"Timer",
+        @"com.apple.control-center.CalculatorModule": @"Calculator",
+        @"com.apple.control-center.CameraModule": @"Camera",
+        @"com.apple.control-center.ScreenRecordingModule": @"Screen Recording",
+        @"com.apple.control-center.LowPowerModule": @"Low Power Mode",
+        @"com.apple.control-center.DarkModeModule": @"Dark Mode",
+        @"com.apple.control-center.TextSizeModule": @"Text Size",
+        @"com.apple.control-center.HearingAidsModule": @"Hearing",
+        @"com.apple.control-center.CodeScannerModule": @"Code Scanner",
         @"com.apple.control-center.ConnectivityModule": @"Connectivity",
         @"com.apple.control-center.DisplayModule": @"Display",
         @"com.apple.control-center.DoNotDisturbModule": @"Focus",
