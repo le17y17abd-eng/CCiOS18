@@ -111,3 +111,31 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 }
 
 %end
+
+
+// Keep the native connectivity module and its original button actions.
+// Only refine the individual Airplane/Wi-Fi/Bluetooth/Cellular/AirDrop/Hotspot
+// button surfaces; iOS remains responsible for their state and behavior.
+%hook CCUIConnectivityButtonViewController
+
+- (void)viewDidLayoutSubviews {
+    %orig;
+    @try {
+        UIView *buttonView = [(UIViewController *)self view];
+        if (!buttonView || CGRectIsEmpty(buttonView.bounds)) return;
+
+        CGFloat side = MIN(CGRectGetWidth(buttonView.bounds), CGRectGetHeight(buttonView.bounds));
+        CGFloat radius = side > 0 ? MIN(18.0, side * 0.28) : 14.0;
+        buttonView.layer.cornerRadius = radius;
+        if (@available(iOS 13.0, *)) {
+            buttonView.layer.cornerCurve = kCACornerCurveContinuous;
+        }
+        buttonView.layer.borderWidth = 0.65;
+        buttonView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.14].CGColor;
+        buttonView.layer.masksToBounds = YES;
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Connectivity button styling exception: %@", exception);
+    }
+}
+
+%end
