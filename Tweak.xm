@@ -261,17 +261,22 @@ static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
 }
 
 static NSArray<NSDictionary<NSString *, NSString *> *> *CCiOS18AvailableInlineModules(void) {
+    // Identifiers verified against the iOS Control Center module-order plist.
+    // Only offer known iOS 15 modules; unsupported IDs can leave stale entries
+    // in the settings provider and make the native collection fail to rebuild.
     return @[
         @{@"id": @"com.apple.control-center.FlashlightModule", @"name": @"Flashlight"},
         @{@"id": @"com.apple.mobiletimer.controlcenter.timer", @"name": @"Timer"},
         @{@"id": @"com.apple.control-center.CalculatorModule", @"name": @"Calculator"},
         @{@"id": @"com.apple.control-center.CameraModule", @"name": @"Camera"},
-        @{@"id": @"com.apple.control-center.ScreenRecordingModule", @"name": @"Screen Recording"},
-        @{@"id": @"com.apple.control-center.LowPowerModule", @"name": @"Low Power Mode"},
-        @{@"id": @"com.apple.control-center.DarkModeModule", @"name": @"Dark Mode"},
-        @{@"id": @"com.apple.control-center.TextSizeModule", @"name": @"Text Size"},
-        @{@"id": @"com.apple.control-center.HearingAidsModule", @"name": @"Hearing"},
-        @{@"id": @"com.apple.control-center.CodeScannerModule", @"name": @"Code Scanner"}
+        @{@"id": @"com.apple.Home.ControlCenter", @"name": @"Home"},
+        @{@"id": @"com.apple.control-center.ConnectivityModule", @"name": @"Connectivity"},
+        @{@"id": @"com.apple.mediaremote.controlcenter.nowplaying", @"name": @"Now Playing"},
+        @{@"id": @"com.apple.control-center.OrientationLockModule", @"name": @"Orientation Lock"},
+        @{@"id": @"com.apple.control-center.DoNotDisturbModule", @"name": @"Do Not Disturb"},
+        @{@"id": @"com.apple.control-center.DisplayModule", @"name": @"Display"},
+        @{@"id": @"com.apple.control-center.AudioModule", @"name": @"Volume"},
+        @{@"id": @"com.apple.mediaremote.controlcenter.airplaymirroring", @"name": @"Screen Mirroring"}
     ];
 }
 
