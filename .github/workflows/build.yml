@@ -2,7 +2,7 @@ name: Build CCiOS18
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "ccios18-0.4.0-native-connectivity-layout" ]
   workflow_dispatch:
 
 permissions:
