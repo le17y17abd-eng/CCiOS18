@@ -548,6 +548,7 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
     } else if (gesture.state == UIGestureRecognizerStateEnded ||
                gesture.state == UIGestureRecognizerStateCancelled ||
                gesture.state == UIGestureRecognizerStateFailed) {
+        BOOL shouldCommitDrop = gesture.state == UIGestureRecognizerStateEnded;
         NSString *dragged = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragIdentifierKey);
         UIView *snapshot = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey);
         UIView *source = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey);
@@ -565,7 +566,7 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
             CGFloat distance = hypot(center.x - drop.x, center.y - drop.y);
             if (distance < bestDistance) { bestDistance = distance; targetModule = candidate; }
         }
-        if (dragged.length && targetModule && bestDistance < 180.0 && current.count > 1 && [current containsObject:dragged]) {
+        if (shouldCommitDrop && dragged.length && targetModule && bestDistance < 180.0 && current.count > 1 && [current containsObject:dragged]) {
             NSString *target = CCiOS18IdentifierFromObject(targetModule, 0);
             NSMutableArray *updated = [current mutableCopy];
             [updated removeObject:dragged];
