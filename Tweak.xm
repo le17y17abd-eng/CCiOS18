@@ -559,12 +559,16 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         UIViewController *targetModule = nil;
         CGFloat bestDistance = CGFLOAT_MAX;
         NSArray<NSString *> *current = CCiOS18CurrentEnabledModuleOrder();
-        for (UIViewController *candidate in CCiOS18InlineModules(overlay)) {
-            NSString *candidateIdentifier = CCiOS18IdentifierFromObject(candidate, 0);
-            if (candidate.view == source || ![current containsObject:candidateIdentifier]) continue;
-            CGPoint center = [candidate.view.superview convertPoint:candidate.view.center toView:root];
-            CGFloat distance = hypot(center.x - drop.x, center.y - drop.y);
-            if (distance < bestDistance) { bestDistance = distance; targetModule = candidate; }
+        CGRect sourceFrame = source ? [source convertRect:source.bounds toView:root] : CGRectZero;
+        BOOL droppedBackOnSource = source && CGRectContainsPoint(sourceFrame, drop);
+        if (!droppedBackOnSource) {
+            for (UIViewController *candidate in CCiOS18InlineModules(overlay)) {
+                NSString *candidateIdentifier = CCiOS18IdentifierFromObject(candidate, 0);
+                if (candidate.view == source || ![current containsObject:candidateIdentifier]) continue;
+                CGPoint center = [candidate.view.superview convertPoint:candidate.view.center toView:root];
+                CGFloat distance = hypot(center.x - drop.x, center.y - drop.y);
+                if (distance < bestDistance) { bestDistance = distance; targetModule = candidate; }
+            }
         }
         if (shouldCommitDrop && dragged.length && targetModule && bestDistance < 180.0 && current.count > 1 && [current containsObject:dragged]) {
             NSString *target = CCiOS18IdentifierFromObject(targetModule, 0);
