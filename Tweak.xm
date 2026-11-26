@@ -111,3 +111,144 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 }
 
 %end
+
+// iOS 15 ConnectivityModule private interface.
+// All six controllers remain Apple's original controllers.
+@interface CCUIConnectivityModuleViewController : UIViewController
+- (BOOL)isExpanded;
+- (BOOL)_isPortrait;
+- (NSArray *)portraitButtonViewControllers;
+- (UIViewController *)airplaneButton;
+- (UIViewController *)wifiButton;
+- (UIViewController *)airDropButton;
+- (UIViewController *)cellularDataButton;
+- (UIViewController *)bluetoothButton;
+- (UIViewController *)hotspotButton;
+@end
+
+static void CCiOS18PlaceConnectivityButton(UIViewController *controller, UIView *moduleView, CGRect frame) {
+    if (!controller || !moduleView) return;
+    UIView *buttonView = controller.view;
+    UIView *parent = buttonView.superview;
+    if (!buttonView || !parent) return;
+
+    // Convert from module coordinates so Apple's scroll/container hierarchy is respected.
+    buttonView.frame = [moduleView convertRect:frame toView:parent];
+    buttonView.hidden = NO;
+    buttonView.alpha = 1.0;
+}
+
+%group CCiOS18Connectivity
+
+%hook CCUIConnectivityModuleViewController
+
+- (void)viewWillLayoutSubviews {
+    %orig;
+    @try {
+        // Keep Apple's expanded view and long-press menu completely untouched.
+        if ([self isExpanded]) return;
+        if (![self _isPortrait]) return;
+
+        SEL selectors[] = {
+            @selector(portraitButtonViewControllers),
+            @selector(airplaneButton),
+            @selector(wifiButton),
+            @selector(airDropButton),
+            @selector(cellularDataButton),
+            @selector(bluetoothButton),
+            @selector(hotspotButton)
+        };
+        for (NSUInteger i = 0; i < sizeof(selectors) / sizeof(SEL); i++) {
+            if (![self respondsToSelector:selectors[i]]) return;
+        }
+
+        NSArray *portraitButtons = [self portraitButtonViewControllers];
+        UIViewController *airplane = [self airplaneButton];
+        UIViewController *wifi = [self wifiButton];
+        UIViewController *airDrop = [self airDropButton];
+        UIViewController *cellular = [self cellularDataButton];
+        UIViewController *bluetooth = [self bluetoothButton];
+        UIViewController *hotspot = [self hotspotButton];
+
+        if (!portraitButtons || portraitButtons.count < 6 ||
+            !airplane || !wifi || !airDrop || !cellular || !bluetooth || !hotspot) return;
+
+        // Do not rearrange anything unless all six native Apple controllers belong to this module.
+        NSArray *nativeButtons = @[airplane, wifi, airDrop, cellular, bluetooth, hotspot];
+        for (UIViewController *button in nativeButtons) {
+            if (![portraitButtons containsObject:button]) return;
+        }
+
+        UIView *moduleView = self.view;
+        CGRect bounds = moduleView.bounds;
+        CGFloat width = CGRectGetWidth(bounds);
+        CGFloat height = CGRectGetHeight(bounds);
+        if (width < 100.0 || height < 100.0) return;
+
+        CGFloat inset = 4.0;
+        CGFloat gap = 4.0;
+        CGFloat cellWidth = (width - (2.0 * inset) - gap) / 2.0;
+        CGFloat cellHeight = (height - (2.0 * inset) - gap) / 2.0;
+        if (cellWidth < 24.0 || cellHeight < 24.0) return;
+
+        CGFloat leftX = CGRectGetMinX(bounds) + inset;
+        CGFloat rightX = leftX + cellWidth + gap;
+        CGFloat topY = CGRectGetMinY(bounds) + inset;
+        CGFloat bottomY = topY + cellHeight + gap;
+
+        // iOS 18-inspired four-cell composition:
+        // top-left Airplane, top-right Wi-Fi, bottom-left AirDrop.
+        CCiOS18PlaceConnectivityButton(airplane, moduleView,
+            CGRectMake(leftX, topY, cellWidth, cellHeight));
+        CCiOS18PlaceConnectivityButton(wifi, moduleView,
+            CGRectMake(rightX, topY, cellWidth, cellHeight));
+        CCiOS18PlaceConnectivityButton(airDrop, moduleView,
+            CGRectMake(leftX, bottomY, cellWidth, cellHeight));
+
+        // Bottom-right cell: Cellular + Bluetooth on the first row,
+        // Personal Hotspot centered underneath.
+        CGFloat miniGap = 3.0;
+        CGFloat miniWidth = (cellWidth - miniGap) / 2.0;
+        CGFloat miniHeight = (cellHeight - miniGap) / 2.0;
+        CGFloat miniBottomY = bottomY + miniHeight + miniGap;
+        CGFloat centeredMiniX = rightX + (cellWidth - miniWidth) / 2.0;
+
+        CCiOS18PlaceConnectivityButton(cellular, moduleView,
+            CGRectMake(rightX, bottomY, miniWidth, miniHeight));
+        CCiOS18PlaceConnectivityButton(bluetooth, moduleView,
+            CGRectMake(rightX + miniWidth + miniGap, bottomY, miniWidth, miniHeight));
+        CCiOS18PlaceConnectivityButton(hotspot, moduleView,
+            CGRectMake(centeredMiniX, miniBottomY, miniWidth, miniHeight));
+
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Native connectivity layout exception: %@", exception);
+    }
+}
+
+%end
+%end
+
+static void CCiOS18InstallConnectivityHooks(void) {
+    static BOOL installed = NO;
+    if (installed) return;
+    if (!NSClassFromString(@"CCUIConnectivityModuleViewController")) return;
+    installed = YES;
+    %init(CCiOS18Connectivity);
+}
+
+static void CCiOS18ConnectivityBundleLoaded(CFNotificationCenterRef center, void *observer,
+                                             CFStringRef name, const void *object,
+                                             CFDictionaryRef userInfo) {
+    NSDictionary *info = (__bridge NSDictionary *)userInfo;
+    NSArray *loadedClasses = info[@"NSLoadedClasses"];
+    if ([loadedClasses containsObject:@"CCUIConnectivityModuleViewController"]) {
+        CCiOS18InstallConnectivityHooks();
+    }
+}
+
+%ctor {
+    CCiOS18InstallConnectivityHooks();
+    CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(), NULL,
+        CCiOS18ConnectivityBundleLoaded, (CFStringRef)NSBundleDidLoadNotification,
+        NULL, CFNotificationSuspensionBehaviorCoalesce);
+}
