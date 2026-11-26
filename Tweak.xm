@@ -111,3 +111,107 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 }
 
 %end
+
+// Connectivity layout: keep Apple's six real view controllers and their actions.
+// Only their compact-mode frames are adjusted. Expanded mode remains 100% native.
+@interface CCUIConnectivityModuleViewController : UIViewController
+- (BOOL)isExpanded;
+- (NSArray *)buttonViewControllers;
+@end
+
+static NSString *CCiOS18ConnectivityKind(UIViewController *controller) {
+    NSString *name = NSStringFromClass([controller class]).lowercaseString;
+    if ([name containsString:@"airdrop"]) return @"airdrop";
+    if ([name containsString:@"airplane"]) return @"airplane";
+    if ([name containsString:@"wifi"]) return @"wifi";
+    if ([name containsString:@"cellulardata"]) return @"cellular";
+    if ([name containsString:@"bluetooth"]) return @"bluetooth";
+    if ([name containsString:@"hotspot"]) return @"hotspot";
+    return nil;
+}
+
+static void CCiOS18ApplyConnectivityLayout(CCUIConnectivityModuleViewController *module) {
+    if (!module || module.isExpanded) return;
+
+    NSArray *controllers = [module buttonViewControllers];
+    if (![controllers isKindOfClass:[NSArray class]] || controllers.count < 6) return;
+
+    NSMutableDictionary *buttons = [NSMutableDictionary dictionary];
+    for (id item in controllers) {
+        if (![item isKindOfClass:[UIViewController class]]) continue;
+        NSString *kind = CCiOS18ConnectivityKind((UIViewController *)item);
+        if (kind && ((UIViewController *)item).view) buttons[kind] = ((UIViewController *)item).view;
+    }
+
+    // Fail closed: if this iOS build exposes a different controller set, leave Apple's layout untouched.
+    NSArray *required = @[@"airplane", @"airdrop", @"wifi", @"cellular", @"bluetooth", @"hotspot"];
+    for (NSString *kind in required) if (!buttons[kind]) return;
+
+    UIView *host = module.view;
+    CGRect bounds = host.bounds;
+    CGFloat width = CGRectGetWidth(bounds);
+    CGFloat height = CGRectGetHeight(bounds);
+    if (width < 100.0 || height < 90.0) return;
+
+    CGFloat side = MIN(width, height);
+    CGFloat margin = MAX(4.0, side * 0.035);
+    CGFloat columnGap = MAX(3.0, side * 0.025);
+    CGFloat rowGap = MAX(4.0, side * 0.035);
+    CGFloat largeHeight = (height - (margin * 2.0) - rowGap) * 0.61;
+    CGFloat smallHeight = height - (margin * 2.0) - rowGap - largeHeight;
+    CGFloat largeWidth = (width - (margin * 2.0) - (columnGap * 2.0)) / 3.0;
+    CGFloat smallWidth = MIN(largeWidth * 0.72, (width - (margin * 2.0) - (columnGap * 2.0)) / 3.0);
+    CGFloat smallGap = (width - (smallWidth * 3.0)) / 4.0;
+
+    NSArray *largeKinds = @[@"airplane", @"airdrop", @"wifi"];
+    for (NSUInteger index = 0; index < largeKinds.count; index++) {
+        CGFloat x = margin + index * (largeWidth + columnGap);
+        UIView *button = buttons[largeKinds[index]];
+        button.hidden = NO;
+        button.alpha = 1.0;
+        button.frame = CGRectMake(x, margin, largeWidth, largeHeight);
+    }
+
+    NSArray *smallKinds = @[@"cellular", @"bluetooth", @"hotspot"];
+    for (NSUInteger index = 0; index < smallKinds.count; index++) {
+        CGFloat x = smallGap + index * (smallWidth + smallGap);
+        UIView *button = buttons[smallKinds[index]];
+        button.hidden = NO;
+        button.alpha = 1.0;
+        button.frame = CGRectMake(x, margin + largeHeight + rowGap, smallWidth, smallHeight);
+    }
+}
+
+%group CCiOS18Connectivity
+
+%hook CCUIConnectivityModuleViewController
+
+- (void)viewWillLayoutSubviews {
+    %orig;
+    @try {
+        CCiOS18ApplyConnectivityLayout(self);
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Connectivity layout exception: %@", exception);
+    }
+}
+
+%end
+%end
+
+static void CCiOS18BundleDidLoad(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    NSDictionary *info = (__bridge NSDictionary *)userInfo;
+    NSArray *classes = info[NSLoadedClasses];
+    if ([classes containsObject:@"CCUIConnectivityModuleViewController"]) {
+        %init(CCiOS18Connectivity);
+    }
+}
+
+%ctor {
+    CFNotificationCenterAddObserver(CFNotificationCenterGetLocalCenter(),
+                                    NULL,
+                                    CCiOS18BundleDidLoad,
+                                    (CFStringRef)NSBundleDidLoadNotification,
+                                    NULL,
+                                    CFNotificationSuspensionBehaviorCoalesce);
+    %init;
+}
