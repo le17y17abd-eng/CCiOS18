@@ -1,6 +1,6 @@
 Package: com.le17y17abd-eng.ccios18
 Name: CCiOS18
-Version: 1.0.4
+Version: 1.0.5
 Architecture: iphoneos-arm64
 Description: CCAster-based editable Control Center for iOS 15 with native module layout, paging, resizing, and add/remove controls.
 Maintainer: le17y17abd-eng
