@@ -689,20 +689,23 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
             resize = [[UIView alloc] initWithFrame:CGRectZero];
             resize.tag = kCCiOS18InlineResizeTag;
             resize.accessibilityIdentifier = identifier;
-            resize.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.94];
-            resize.layer.cornerRadius = 11.0;
-            resize.layer.borderWidth = 0.8;
-            resize.layer.borderColor = [UIColor colorWithWhite:0.72 alpha:0.9].CGColor;
-            resize.layer.shadowColor = UIColor.blackColor.CGColor;
-            resize.layer.shadowOpacity = 0.16;
-            resize.layer.shadowRadius = 2.0;
-            resize.layer.shadowOffset = CGSizeMake(0, 1);
-            UIImageView *grip = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.left.and.arrow.down.right"]];
-            grip.tintColor = [UIColor colorWithWhite:0.25 alpha:1.0];
-            grip.contentMode = UIViewContentModeScaleAspectFit;
-            grip.frame = CGRectMake(5.0, 5.0, 12.0, 12.0);
-            grip.userInteractionEnabled = NO;
-            [resize addSubview:grip];
+            resize.backgroundColor = UIColor.clearColor;
+            resize.clipsToBounds = NO;
+            UIBlurEffect *grabberBlur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialLight];
+            UIVisualEffectView *grabberMaterial = [[UIVisualEffectView alloc] initWithEffect:grabberBlur];
+            grabberMaterial.tag = 180024;
+            grabberMaterial.frame = resize.bounds;
+            grabberMaterial.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+            grabberMaterial.userInteractionEnabled = NO;
+            [resize addSubview:grabberMaterial];
+            CAShapeLayer *pill = [CAShapeLayer layer];
+            pill.name = @"CCiOS18ResizePill";
+            pill.fillColor = UIColor.clearColor.CGColor;
+            pill.strokeColor = [UIColor.whiteColor colorWithAlphaComponent:0.82].CGColor;
+            pill.lineWidth = 12.5;
+            pill.lineCap = kCALineCapRound;
+            pill.lineJoin = kCALineJoinRound;
+            [resize.layer addSublayer:pill];
             UIPanGestureRecognizer *resizePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_resizeHandlePanned:)];
             resizePan.minimumNumberOfTouches = 1;
             resizePan.maximumNumberOfTouches = 1;
@@ -713,7 +716,24 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
             objc_setAssociatedObject(resize, &kCCiOS18InlineResizePanKey, resizePan, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             [root addSubview:resize];
         }
-        resize.frame = CGRectMake(CGRectGetMaxX(frame) - 17.0, CGRectGetMaxY(frame) - 17.0, 22.0, 22.0);
+        UIBezierPath *cornerPath = [UIBezierPath bezierPath];
+        [cornerPath moveToPoint:CGPointMake(20.29, 40.01)];
+        [cornerPath addCurveToPoint:CGPointMake(40.01, 20.29)
+                      controlPoint1:CGPointMake(31.20, 40.01)
+                      controlPoint2:CGPointMake(40.01, 31.20)];
+        UIVisualEffectView *grabberMaterial = (UIVisualEffectView *)[resize viewWithTag:180024];
+        CAShapeLayer *materialMask = [CAShapeLayer layer];
+        materialMask.path = cornerPath.CGPath;
+        materialMask.fillColor = UIColor.clearColor.CGColor;
+        materialMask.strokeColor = UIColor.blackColor.CGColor;
+        materialMask.lineWidth = 12.0;
+        materialMask.lineCap = kCALineCapRound;
+        materialMask.lineJoin = kCALineJoinRound;
+        grabberMaterial.layer.mask = materialMask;
+        for (CALayer *layer in [resize.layer.sublayers copy]) {
+            if ([layer.name isEqualToString:@"CCiOS18ResizePill"] && [layer isKindOfClass:[CAShapeLayer class]]) ((CAShapeLayer *)layer).path = cornerPath.CGPath;
+        }
+        resize.frame = CGRectMake(CGRectGetMaxX(frame) - 40.0, CGRectGetMaxY(frame) - 40.0, 40.0, 40.0);
         resize.hidden = NO;
         [root bringSubviewToFront:resize];
     }
