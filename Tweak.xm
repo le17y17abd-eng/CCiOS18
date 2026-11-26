@@ -2,6 +2,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <math.h>
+#import <objc/message.h>
 
 // CCiOS18 — iOS 15 native Control Center visual layer.
 // Original Apple modules and their actions are retained.
@@ -99,14 +100,206 @@ static void CCiOS18StyleSliderViews(UIView *container) {
 
 %end
 
+
+// MARK: - Native Control Center module order editor (iOS 15)
+//
+// This editor changes the order saved by Apple's ControlCenterServices
+// provider. It does not move or replace native module views, so each module
+// keeps its original controls and behavior.
+
+#import <objc/message.h>
+
+static const NSInteger kCCiOS18EditorButtonTag = 180019;
+
+static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
+    NSDictionary *known = @{
+        @"com.apple.control-center.ConnectivityModule": @"Connectivity",
+        @"com.apple.control-center.DisplayModule": @"Display",
+        @"com.apple.control-center.DoNotDisturbModule": @"Focus",
+        @"com.apple.control-center.MusicRecognitionModule": @"Music Recognition",
+        @"com.apple.control-center.ScreenMirroringModule": @"Screen Mirroring",
+        @"com.apple.control-center.AirPlayMirroringModule": @"Screen Mirroring",
+        @"com.apple.control-center.HearingAidsModule": @"Hearing",
+        @"com.apple.control-center.HomeControlCenterModule": @"Home",
+        @"com.apple.control-center.LowPowerModule": @"Low Power Mode",
+        @"com.apple.control-center.AccessibilityModule": @"Accessibility",
+        @"com.apple.control-center.TextSizeModule": @"Text Size",
+        @"com.apple.control-center.DarkModeModule": @"Dark Mode",
+        @"com.apple.control-center.BrightnessModule": @"Brightness",
+        @"com.apple.control-center.VolumeModule": @"Volume",
+        @"com.apple.control-center.TimerModule": @"Timer",
+        @"com.apple.control-center.CalculatorModule": @"Calculator",
+        @"com.apple.control-center.CameraModule": @"Camera",
+        @"com.apple.control-center.FlashlightModule": @"Flashlight",
+        @"com.apple.control-center.CodeScannerModule": @"Code Scanner",
+        @"com.apple.control-center.ScreenRecordingModule": @"Screen Recording"
+    };
+    NSString *name = known[identifier];
+    if (name.length) return name;
+    NSString *last = [[identifier componentsSeparatedByString:@"."] lastObject] ?: identifier;
+    last = [last stringByReplacingOccurrencesOfString:@"ControlCenterModule" withString:@""];
+    last = [last stringByReplacingOccurrencesOfString:@"Module" withString:@""];
+    last = [last stringByReplacingOccurrencesOfString:@"-" withString:@" "];
+    last = [last stringByReplacingOccurrencesOfString:@"_" withString:@" "];
+    return last.length ? last : identifier;
+}
+
+@interface CCiOS18ModuleOrderEditor : UITableViewController
+@property(nonatomic, strong) NSMutableArray<NSString *> *moduleIdentifiers;
+- (instancetype)initWithModuleIdentifiers:(NSArray<NSString *> *)identifiers;
+@end
+
+@implementation CCiOS18ModuleOrderEditor
+
+- (instancetype)initWithModuleIdentifiers:(NSArray<NSString *> *)identifiers {
+    self = [super initWithStyle:UITableViewStyleInsetGrouped];
+    if (self) {
+        _moduleIdentifiers = identifiers ? [identifiers mutableCopy] : [NSMutableArray new];
+        self.title = @"Arrange Controls";
+        self.modalPresentationStyle = UIModalPresentationFormSheet;
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor systemGroupedBackgroundColor];
+    self.tableView.backgroundColor = [UIColor systemGroupedBackgroundColor];
+    self.tableView.rowHeight = 58.0;
+    self.tableView.editing = YES;
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(ccios18_cancel)];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemSave target:self action:@selector(ccios18_save)];
+    self.navigationItem.prompt = @"Drag the handles to change the order";
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return self.moduleIdentifiers.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *reuse = @"CCiOS18ModuleOrderCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:reuse];
+    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:reuse];
+    NSString *identifier = self.moduleIdentifiers[indexPath.row];
+    cell.textLabel.text = CCiOS18ReadableModuleName(identifier);
+    cell.textLabel.textColor = [UIColor labelColor];
+    cell.detailTextLabel.text = identifier;
+    cell.detailTextLabel.textColor = [UIColor secondaryLabelColor];
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.showsReorderControl = YES;
+    return cell;
+}
+
+- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath {
+    return YES;
+}
+
+- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath {
+    NSString *identifier = self.moduleIdentifiers[sourceIndexPath.row];
+    [self.moduleIdentifiers removeObjectAtIndex:sourceIndexPath.row];
+    [self.moduleIdentifiers insertObject:identifier atIndex:destinationIndexPath.row];
+}
+
+- (void)ccios18_cancel {
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)ccios18_save {
+    @try {
+        Class providerClass = NSClassFromString(@"CCSModuleSettingsProvider");
+        SEL sharedSelector = NSSelectorFromString(@"sharedProvider");
+        id provider = nil;
+        if (providerClass && [providerClass respondsToSelector:sharedSelector]) {
+            provider = ((id (*)(id, SEL))objc_msgSend)(providerClass, sharedSelector);
+        }
+        SEL saveSelector = NSSelectorFromString(@"setAndSaveOrderedUserEnabledModuleIdentifiers:");
+        if (!provider || ![provider respondsToSelector:saveSelector]) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Unable to Save" message:@"The iOS Control Center settings service is unavailable on this system." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
+            return;
+        }
+        ((void (*)(id, SEL, id))objc_msgSend)(provider, saveSelector, [self.moduleIdentifiers copy]);
+        [self dismissViewControllerAnimated:YES completion:nil];
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Module order save exception: %@", exception);
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Save Failed" message:@"iOS could not save the new Control Center order. Your current layout was left unchanged." preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+    }
+}
+
+@end
+
+static NSArray<NSString *> *CCiOS18CurrentEnabledModuleOrder(void) {
+    @try {
+        Class providerClass = NSClassFromString(@"CCSModuleSettingsProvider");
+        SEL sharedSelector = NSSelectorFromString(@"sharedProvider");
+        if (!providerClass || ![providerClass respondsToSelector:sharedSelector]) return nil;
+        id provider = ((id (*)(id, SEL))objc_msgSend)(providerClass, sharedSelector);
+        SEL orderSelector = NSSelectorFromString(@"orderedUserEnabledModuleIdentifiers");
+        if (![provider respondsToSelector:orderSelector]) return nil;
+        id value = ((id (*)(id, SEL))objc_msgSend)(provider, orderSelector);
+        return [value isKindOfClass:[NSArray class]] ? [value copy] : nil;
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Could not read module order: %@", exception);
+        return nil;
+    }
+}
+
+
 %hook CCUIModularControlCenterOverlayViewController
 
 - (void)viewDidLayoutSubviews {
     %orig;
     @try {
-        CCiOS18InstallBackdrop([(UIViewController *)self view]);
+        UIView *root = [(UIViewController *)self view];
+        CCiOS18InstallBackdrop(root);
+
+        UIButton *editButton = (UIButton *)[root viewWithTag:kCCiOS18EditorButtonTag];
+        if (!editButton) {
+            editButton = [UIButton buttonWithType:UIButtonTypeSystem];
+            editButton.tag = kCCiOS18EditorButtonTag;
+            [editButton setTitle:@"Edit" forState:UIControlStateNormal];
+            [editButton setImage:[UIImage systemImageNamed:@"slider.horizontal.3"] forState:UIControlStateNormal];
+            editButton.tintColor = [UIColor whiteColor];
+            editButton.titleLabel.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+            editButton.backgroundColor = [UIColor colorWithWhite:0.18 alpha:0.78];
+            editButton.layer.cornerRadius = 15.0;
+            editButton.layer.borderWidth = 0.7;
+            editButton.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.24].CGColor;
+            editButton.clipsToBounds = YES;
+            editButton.translatesAutoresizingMaskIntoConstraints = NO;
+            [editButton addTarget:self action:@selector(ccios18_openModuleOrderEditor) forControlEvents:UIControlEventTouchUpInside];
+            [root addSubview:editButton];
+            [NSLayoutConstraint activateConstraints:@[
+                [editButton.trailingAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.trailingAnchor constant:-18.0],
+                [editButton.topAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.topAnchor constant:10.0],
+                [editButton.widthAnchor constraintEqualToConstant:76.0],
+                [editButton.heightAnchor constraintEqualToConstant:34.0]
+            ]];
+        }
     } @catch (NSException *exception) {
-        NSLog(@"[CCiOS18] Backdrop exception: %@", exception);
+        NSLog(@"[CCiOS18] Backdrop/editor button exception: %@", exception);
+    }
+}
+
+%new
+- (void)ccios18_openModuleOrderEditor {
+    @try {
+        NSArray *order = CCiOS18CurrentEnabledModuleOrder();
+        if (!order || order.count == 0) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Controls Unavailable" message:@"Could not read the current Control Center module order from iOS." preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [(UIViewController *)self presentViewController:alert animated:YES completion:nil];
+            return;
+        }
+        CCiOS18ModuleOrderEditor *editor = [[CCiOS18ModuleOrderEditor alloc] initWithModuleIdentifiers:order];
+        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:editor];
+        navigation.modalPresentationStyle = UIModalPresentationFormSheet;
+        [(UIViewController *)self presentViewController:navigation animated:YES completion:nil];
+    } @catch (NSException *exception) {
+        NSLog(@"[CCiOS18] Could not present module order editor: %@", exception);
     }
 }
 
