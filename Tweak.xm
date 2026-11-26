@@ -23,6 +23,7 @@ typedef struct CCUILayoutPoint { NSUInteger x; NSUInteger y; } CCUILayoutPoint;
 typedef struct CCUILayoutRect { CCUILayoutPoint origin; CCUILayoutSize size; } CCUILayoutRect;
 static NSArray<UIViewController *> *CCiOS18InlineModules(UIViewController *overlay);
 static NSString *CCiOS18IdentifierFromObject(id object, NSUInteger depth);
+static BOOL CCiOS18ClassContains(id object, NSString *part);
 
 typedef struct CCiOS18GridSize { NSUInteger width; NSUInteger height; } CCiOS18GridSize;
 typedef struct CCiOS18GridPoint { NSUInteger x; NSUInteger y; } CCiOS18GridPoint;
@@ -32,7 +33,7 @@ static NSMutableDictionary<NSString *, NSValue *> *gCCiOS18NativeGridRects;
 static NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *gCCiOS18CustomGridSizes;
 static NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *gCCiOS18CustomGridOrigins;
 static const NSUInteger kCCiOS18GridColumns = 4;
-static const NSUInteger kCCiOS18GridRows = 8;
+static const NSUInteger kCCiOS18GridRows = 64;
 static CGFloat const kCCiOS18GridCell = 67.0;
 static CGFloat const kCCiOS18GridGap = 12.0;
 static NSString * const kCCiOS18GridPrefsDomain = @"com.le17y17abd-eng.ccios18";
@@ -572,8 +573,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
                     objc_setAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey, pinch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 }
                 pinch.enabled = NO; // Resizing is performed with the corner handle, not a two-finger pinch.
-                CGFloat savedScale = CCiOS18SavedScaleForIdentifier(identifier);
-                module.view.transform = CGAffineTransformMakeScale(savedScale, savedScale);
+                module.view.transform = CGAffineTransformIdentity;
             }
             module.view.layer.borderWidth = 1.4;
             module.view.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.88].CGColor;
@@ -867,12 +867,18 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         CGFloat dx = translation.x / step, dy = translation.y / step;
         CCiOS18GridSize candidate = start;
         if (baseSize.width == 1 && baseSize.height == 1) {
-            if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
-            else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
-            else candidate = (CCiOS18GridSize){1,1};
+            if (start.width == 1 && start.height == 1) {
+                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
+                else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
+            } else if (start.width == 2 && start.height == 1) {
+                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
+                else if (dx <= -0.65) candidate = (CCiOS18GridSize){1,1};
+            } else if (start.width == 2 && start.height == 2) {
+                if (dy <= -0.65) candidate = (CCiOS18GridSize){2,1};
+                if (dx <= -0.65 && dy <= -0.65) candidate = (CCiOS18GridSize){1,1};
+            }
         } else if (baseSize.width == 2 && baseSize.height == 2) {
             if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
-            else candidate = (CCiOS18GridSize){2,2};
         }
         CGFloat width = candidate.width * kCCiOS18GridCell + (candidate.width-1) * kCCiOS18GridGap;
         CGFloat height = candidate.height * kCCiOS18GridCell + (candidate.height-1) * kCCiOS18GridGap;
@@ -888,12 +894,20 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         CGPoint translation = [gesture translationInView:self.view];
         CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
         CCiOS18GridSize candidate = start;
+        CGFloat dx = translation.x / step, dy = translation.y / step;
         if (baseSize.width == 1 && baseSize.height == 1) {
-            if (translation.y / step >= 0.65) candidate = (CCiOS18GridSize){2,2};
-            else if (translation.x / step >= 0.65) candidate = (CCiOS18GridSize){2,1};
-            else candidate = (CCiOS18GridSize){1,1};
+            if (start.width == 1 && start.height == 1) {
+                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
+                else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
+            } else if (start.width == 2 && start.height == 1) {
+                if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
+                else if (dx <= -0.65) candidate = (CCiOS18GridSize){1,1};
+            } else if (start.width == 2 && start.height == 2) {
+                if (dy <= -0.65) candidate = (CCiOS18GridSize){2,1};
+                if (dx <= -0.65 && dy <= -0.65) candidate = (CCiOS18GridSize){1,1};
+            }
         } else if (baseSize.width == 2 && baseSize.height == 2) {
-            candidate = translation.x / step >= 1.0 ? (CCiOS18GridSize){4,2} : (CCiOS18GridSize){2,2};
+            if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
         }
         if (candidate.width != start.width || candidate.height != start.height) {
             CCiOS18ApplyGridResize(identifier, candidate, (UIViewController *)self);
