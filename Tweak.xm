@@ -137,6 +137,7 @@ static char kCCiOS18InlinePinchGestureKey;
 static char kCCiOS18InlinePinchBaseScaleKey;
 static char kCCiOS18InlineResizePanKey;
 static char kCCiOS18InlineResizeStartKey;
+static char kCCiOS18InlineResizeBaseScaleKey;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
 @end
@@ -404,7 +405,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
                     [module.view addGestureRecognizer:pinch];
                     objc_setAssociatedObject(module.view, &kCCiOS18InlinePinchGestureKey, pinch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 }
-                pinch.enabled = YES;
+                pinch.enabled = NO; // Resizing is performed with the corner handle, not a two-finger pinch.
                 CGFloat savedScale = CCiOS18SavedScaleForIdentifier(identifier);
                 module.view.transform = CGAffineTransformMakeScale(savedScale, savedScale);
             }
@@ -688,14 +689,14 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
     if (!module || !identifier.length) return;
     UIView *moduleView = module.view;
     if (gesture.state == UIGestureRecognizerStateBegan) {
-        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeStartKey,
-            [NSValue valueWithCGPoint:[gesture locationInView:moduleView]], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    } else if (gesture.state == UIGestureRecognizerStateChanged) {
-        NSValue *startValue = objc_getAssociatedObject(handle, &kCCiOS18InlineResizeStartKey);
-        CGPoint start = startValue ? startValue.CGPointValue : CGPointZero;
-        CGPoint current = [gesture locationInView:moduleView];
         CGFloat base = CCiOS18SavedScaleForIdentifier(identifier);
-        CGFloat delta = ((current.x - start.x) + (current.y - start.y)) / MAX(120.0, (CGRectGetWidth(moduleView.bounds) + CGRectGetHeight(moduleView.bounds)) * 0.5);
+        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey, @(base), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        CGFloat base = [objc_getAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey) doubleValue];
+        if (base <= 0.0) base = 1.0;
+        CGPoint translation = [gesture translationInView:self.view];
+        CGFloat unit = MAX(120.0, (CGRectGetWidth(moduleView.bounds) + CGRectGetHeight(moduleView.bounds)) * 0.5);
+        CGFloat delta = (translation.x + translation.y) / unit;
         CGFloat scale = MAX(0.55, MIN(1.65, base + delta));
         moduleView.transform = CGAffineTransformMakeScale(scale, scale);
         [self ccios18_refreshInlineEditor];
@@ -704,11 +705,12 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         NSString *key = [@"CCiOS18ModuleScale." stringByAppendingString:identifier];
         [[NSUserDefaults standardUserDefaults] setFloat:scale forKey:key];
         [[NSUserDefaults standardUserDefaults] synchronize];
-        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeStartKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self ccios18_refreshInlineEditor];
     } else if (gesture.state == UIGestureRecognizerStateCancelled || gesture.state == UIGestureRecognizerStateFailed) {
-        CGFloat scale = CCiOS18SavedScaleForIdentifier(identifier);
-        moduleView.transform = CGAffineTransformMakeScale(scale, scale);
+        CGFloat base = [objc_getAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey) doubleValue];
+        if (base <= 0.0) base = CCiOS18SavedScaleForIdentifier(identifier);
+        moduleView.transform = CGAffineTransformMakeScale(base, base);
     }
 }
 
