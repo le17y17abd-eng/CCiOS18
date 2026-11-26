@@ -237,7 +237,7 @@ static UIButton *CCAConnectivitySnapshotProxy(UIView *root, NSInteger tag, CGRec
         proxy = [UIButton buttonWithType:UIButtonTypeCustom];
         proxy.tag = tag;
         proxy.imageView.contentMode = UIViewContentModeScaleAspectFit;
-        [proxy addTarget:[CCAsterCoordinator shared] action:@selector(connectivityProxyTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [proxy addTarget:[CCiOS18ConnectivityCoordinator shared] action:@selector(connectivityProxyTapped:) forControlEvents:UIControlEventTouchUpInside];
         [root addSubview:proxy];
     }
     UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
