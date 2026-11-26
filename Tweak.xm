@@ -127,6 +127,7 @@ static char kCCiOS18InlineOverlayKey;
 static char kCCiOS18InlineDragSnapshotKey;
 static char kCCiOS18InlineDragSourceKey;
 static char kCCiOS18InlineDragIdentifierKey;
+static char kCCiOS18InlineDragOffsetKey;
 static char kCCiOS18InlineScrollEnabledKey;
 
 @interface CCiOS18LongPressDelegate : NSObject <UIGestureRecognizerDelegate>
@@ -525,6 +526,10 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragIdentifierKey, identifier, OBJC_ASSOCIATION_COPY_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey, moduleView, OBJC_ASSOCIATION_ASSIGN);
         CGRect frame = [moduleView convertRect:moduleView.bounds toView:root];
+        CGPoint finger = [gesture locationInView:root];
+        CGPoint dragOffset = CGPointMake(CGRectGetMidX(frame) - finger.x, CGRectGetMidY(frame) - finger.y);
+        objc_setAssociatedObject(overlay, &kCCiOS18InlineDragOffsetKey,
+            [NSValue valueWithCGPoint:dragOffset], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         UIView *snapshot = [moduleView snapshotViewAfterScreenUpdates:NO];
         snapshot.frame = frame;
         snapshot.layer.shadowColor = UIColor.blackColor.CGColor;
@@ -536,14 +541,20 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey, snapshot, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     } else if (gesture.state == UIGestureRecognizerStateChanged) {
         UIView *snapshot = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey);
-        if (snapshot) snapshot.center = [gesture locationInView:root];
+        NSValue *offsetValue = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragOffsetKey);
+        CGPoint offset = offsetValue ? offsetValue.CGPointValue : CGPointZero;
+        CGPoint finger = [gesture locationInView:root];
+        if (snapshot) snapshot.center = CGPointMake(finger.x + offset.x, finger.y + offset.y);
     } else if (gesture.state == UIGestureRecognizerStateEnded ||
                gesture.state == UIGestureRecognizerStateCancelled ||
                gesture.state == UIGestureRecognizerStateFailed) {
         NSString *dragged = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragIdentifierKey);
         UIView *snapshot = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey);
         UIView *source = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey);
-        CGPoint drop = snapshot ? snapshot.center : [gesture locationInView:root];
+        NSValue *offsetValue = objc_getAssociatedObject(overlay, &kCCiOS18InlineDragOffsetKey);
+        CGPoint offset = offsetValue ? offsetValue.CGPointValue : CGPointZero;
+        CGPoint currentFinger = [gesture locationInView:root];
+        CGPoint drop = snapshot ? snapshot.center : CGPointMake(currentFinger.x + offset.x, currentFinger.y + offset.y);
         UIViewController *targetModule = nil;
         CGFloat bestDistance = CGFLOAT_MAX;
         NSArray<NSString *> *current = CCiOS18CurrentEnabledModuleOrder();
@@ -559,13 +570,20 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
             NSMutableArray *updated = [current mutableCopy];
             [updated removeObject:dragged];
             NSUInteger targetIndex = [updated indexOfObject:target];
-            if (targetIndex == NSNotFound) targetIndex = updated.count;
-            else [updated insertObject:dragged atIndex:targetIndex];
-            if (targetIndex == updated.count) [updated addObject:dragged];
+            if (targetIndex == NSNotFound) {
+                targetIndex = updated.count;
+            } else {
+                CGRect targetFrame = [targetModule.view convertRect:targetModule.view.bounds toView:root];
+                BOOL sameRow = fabs(drop.y - CGRectGetMidY(targetFrame)) <= CGRectGetHeight(targetFrame) * 0.45;
+                BOOL insertAfter = sameRow ? drop.x > CGRectGetMidX(targetFrame) : drop.y > CGRectGetMidY(targetFrame);
+                if (insertAfter) targetIndex++;
+            }
+            [updated insertObject:dragged atIndex:MIN(targetIndex, updated.count)];
             CCiOS18SaveModuleOrder(updated);
         }
         source.alpha = 1.0;
         [snapshot removeFromSuperview];
+        objc_setAssociatedObject(overlay, &kCCiOS18InlineDragOffsetKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragIdentifierKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSnapshotKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         objc_setAssociatedObject(overlay, &kCCiOS18InlineDragSourceKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
