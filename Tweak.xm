@@ -127,16 +127,16 @@ shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherG
     return YES;
 }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
-    UIView *view = touch.view;
-    while (view) {
-        if ([view isKindOfClass:[UIControl class]] ||
-            [view isKindOfClass:[UISlider class]] ||
-            CCiOS18ClassContains(view, @"ScrollView")) return NO;
-        view = view.superview;
-    }
     if ([gestureRecognizer isKindOfClass:[UIPanGestureRecognizer class]]) {
         UIViewController *overlay = objc_getAssociatedObject(gestureRecognizer, &kCCiOS18InlineOverlayKey);
-        return overlay && [objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue];
+        if (!overlay || ![objc_getAssociatedObject(overlay, &kCCiOS18InlineEditingKey) boolValue]) return NO;
+    }
+    UIView *view = touch.view;
+    while (view) {
+        if ([view isKindOfClass:[UISlider class]] ||
+            CCiOS18ClassContains(view, @"Slider") ||
+            CCiOS18ClassContains(view, @"ScrollView")) return NO;
+        view = view.superview;
     }
     return YES;
 }
@@ -300,7 +300,7 @@ static UIButton *CCiOS18MakeInlineButton(NSString *title, NSInteger tag, UIColor
         if (!longPress) {
             longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_handleLongPress:)];
             longPress.minimumPressDuration = 0.55;
-            longPress.cancelsTouchesInView = NO;
+            longPress.cancelsTouchesInView = YES;
             longPress.delaysTouchesBegan = NO;
             longPress.delegate = CCiOS18SharedLongPressDelegate();
             [root addGestureRecognizer:longPress];
