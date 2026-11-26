@@ -21,3 +21,12 @@ This remains a native-module visual enhancement. It does **not** yet implement t
 
 ## Build
 Built with Theos using the rootless package scheme.
+
+
+## Version 0.6.0 — Control Center order editor
+
+- Adds an **Edit** control to the native iOS 15 Control Center overlay.
+- Opens a native table editor showing currently enabled Control Center modules.
+- Drag the reorder handles to change module order, then Save to write the order through Apple's `CCSModuleSettingsProvider` (`setAndSaveOrderedUserEnabledModuleIdentifiers:`).
+- Native module views and their original actions are not replaced. This first editor phase reorders currently enabled modules only; adding/removing modules and multi-page placement are separate follow-up work.
+- Changes may require closing and reopening Control Center for iOS to reflect the saved order.
