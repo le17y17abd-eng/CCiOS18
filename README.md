@@ -19,3 +19,6 @@ This is a visual restyle of the existing iOS 15 Control Center. It does **not** 
 
 ## Build
 Built with Theos using the rootless package scheme.
+
+
+Experimental branch note: v0.3.4 uses the native ConnectivityModule button-controller properties and portrait/landscape arrays for compact tile layout.
