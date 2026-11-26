@@ -30,3 +30,12 @@ Built with Theos using the rootless package scheme.
 - Drag the reorder handles to change module order, then Save to write the order through Apple's `CCSModuleSettingsProvider` (`setAndSaveOrderedUserEnabledModuleIdentifiers:`).
 - Native module views and their original actions are not replaced. This first editor phase reorders currently enabled modules only; adding/removing modules and multi-page placement are separate follow-up work.
 - Changes may require closing and reopening Control Center for iOS to reflect the saved order.
+
+
+## Version 0.7.0 — Add and remove controls
+
+- Extends the native editor with **Included Controls** and **More Controls** sections.
+- Remove an enabled control with the minus button or add a listed control with the plus button.
+- Reorder included controls using the native drag handles.
+- Saves the resulting enabled-module order through Apple's `CCSModuleSettingsProvider`.
+- The first catalog includes common iOS 15 controls; availability still depends on the module being present on the device. A successful CI build does not replace on-device testing.
