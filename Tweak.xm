@@ -265,29 +265,6 @@ static BOOL CCiOS18SaveModuleOrder(NSArray<NSString *> *order) {
     }
 }
 
-static NSString *CCiOS18ReadableModuleName(NSString *identifier) {
-    NSDictionary *known = @{
-        @"com.apple.control-center.FlashlightModule": @"Flashlight",
-        @"com.apple.mobiletimer.controlcenter.timer": @"Timer",
-        @"com.apple.control-center.CalculatorModule": @"Calculator",
-        @"com.apple.control-center.CameraModule": @"Camera",
-        @"com.apple.control-center.ScreenRecordingModule": @"Screen Recording",
-        @"com.apple.control-center.LowPowerModule": @"Low Power Mode",
-        @"com.apple.control-center.DarkModeModule": @"Dark Mode",
-        @"com.apple.control-center.TextSizeModule": @"Text Size",
-        @"com.apple.control-center.HearingAidsModule": @"Hearing",
-        @"com.apple.control-center.CodeScannerModule": @"Code Scanner"
-    };
-    NSString *name = known[identifier];
-    if (name.length) return name;
-    NSString *last = [[identifier componentsSeparatedByString:@"."] lastObject] ?: identifier;
-    last = [last stringByReplacingOccurrencesOfString:@"ControlCenterModule" withString:@""];
-    last = [last stringByReplacingOccurrencesOfString:@"Module" withString:@""];
-    last = [last stringByReplacingOccurrencesOfString:@"-" withString:@" "];
-    last = [last stringByReplacingOccurrencesOfString:@"_" withString:@" "];
-    return last.length ? last : identifier;
-}
-
 static NSArray<NSDictionary<NSString *, NSString *> *> *CCiOS18AvailableInlineModules(void) {
     // Identifiers verified against the iOS Control Center module-order plist.
     // Only offer known iOS 15 modules; unsupported IDs can leave stale entries
