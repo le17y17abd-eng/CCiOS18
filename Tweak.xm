@@ -2883,7 +2883,7 @@ static UIColor *CCAConnectivityAccentColorForIdentifier(NSString *identifier) {
 
 static BOOL CCAConnectivityIdentifierHasExpandedMenu(NSString *identifier) {
     NSString *lower = identifier.lowercaseString;
-    return [lower containsString:@".wifi"] || [lower containsString:@".bluetooth"] || [lower containsString:@".airdrop"];
+    return [lower containsString:@".wifi"] || [lower containsString:@".bluetooth"] || [lower containsString:@".airdrop"] || [lower containsString:@"ccaster.connectivity"];
 }
 
 static void CCARecolorBluetoothPackageLayer(CALayer *layer, CGColorRef color) {
