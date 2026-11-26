@@ -188,7 +188,7 @@ static UIButton *CCAConnectivitySnapshotProxy(UIView *root, NSInteger tag, CGRec
         proxy = [UIButton buttonWithType:UIButtonTypeCustom];
         proxy.tag = tag;
         proxy.imageView.contentMode = UIViewContentModeScaleAspectFit;
-        [proxy addTarget:[CCAsterCoordinator shared] action:@selector(connectivityProxyTapped:) forControlEvents:UIControlEventTouchUpInside];
+        [proxy addTarget:[CCiOS18ConnectivityCoordinator shared] action:@selector(connectivityProxyTapped:) forControlEvents:UIControlEventTouchUpInside];
         [root addSubview:proxy];
     }
     UIView *roundButton = CCAFindSubviewWithClassName(child.view, @"CCUIRoundButton");
@@ -305,12 +305,6 @@ static CCAConnectivityCompactMetrics CCAConnectivityCompactMetricsForBounds(CGRe
 }
 
 
-@interface CCiOS18ConnectivityCoordinator : NSObject
-+ (instancetype)shared;
-- (void)expandConnectivityFromMiniCluster:(UIButton *)sender;
-- (void)connectivityProxyTapped:(UIControl *)sender;
-@end
-
 @implementation CCiOS18ConnectivityCoordinator
 + (instancetype)shared {
     static CCiOS18ConnectivityCoordinator *instance;
@@ -343,6 +337,12 @@ static CCAConnectivityCompactMetrics CCAConnectivityCompactMetricsForBounds(CGRe
     UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
     if (nativeControl) [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
 }
+@end
+
+@interface CCiOS18ConnectivityCoordinator : NSObject
++ (instancetype)shared;
+- (void)expandConnectivityFromMiniCluster:(UIButton *)sender;
+- (void)connectivityProxyTapped:(UIControl *)sender;
 @end
 
 static void CCAConfigureConnectivityLayout(UIViewController *controller) {
