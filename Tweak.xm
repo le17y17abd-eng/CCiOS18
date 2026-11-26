@@ -6072,8 +6072,14 @@ static NSUInteger CCADerivedVisiblePageForOverlay(UIViewController *overlay) {
 }
 - (void)connectivityProxyTapped:(UIControl *)sender {
     UIControl *nativeControl = objc_getAssociatedObject(sender, kCCAConnectivityForwardControlKey);
-    if (!nativeControl) return;
-    [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
+    if (nativeControl) {
+        [nativeControl sendActionsForControlEvents:UIControlEventTouchUpInside];
+        return;
+    }
+    NSInteger tag = sender.tag;
+    if (tag == kCCAConnectivityCompactAirDropTag || tag == kCCAConnectivityCompactHotspotTag) {
+        [self expandConnectivityFromMiniCluster:(UIButton *)sender];
+    }
 }
 - (void)connectivityTileProxyTouchDown:(UIControl *)sender {
     CCASetConnectivityProxyPressed(sender, YES);
