@@ -10805,104 +10805,19 @@ static void CCAConfigureConnectivityLayout(UIViewController *controller) {
     UIButton *expand = (UIButton *)[root viewWithTag:kCCAConnectivityExpandButtonTag];
     UIView *miniCluster = [root viewWithTag:kCCAConnectivityMiniClusterTag];
     if (!compact) {
+        // The expanded panel belongs entirely to iOS. Restore only compact
+        // transforms and hide CCiOS18-only overlays; never lay out Apple's
+        // expanded controls, cards, scroll view, or VPN row here.
         CCAResetConnectivityCompactTransforms(controller);
         expand.hidden = YES;
         miniCluster.hidden = YES;
-        BOOL expanded = gCCAExpandedModuleOpen && CGRectGetWidth(root.bounds) > 250.0 && CGRectGetHeight(root.bounds) > 300.0;
-        UIScrollView *scroll = nil;
-        for (UIView *candidate in root.subviews) if ([candidate isKindOfClass:[UIScrollView class]]) { scroll = (UIScrollView *)candidate; break; }
         for (NSInteger tag = kCCAConnectivityExpandedCardBaseTag; tag < kCCAConnectivityExpandedCardBaseTag + 6; tag++) {
             UIView *card = [root viewWithTag:tag];
-            card.hidden = !expanded;
+            card.hidden = YES;
         }
         UIView *vpnCard = [root viewWithTag:kCCAConnectivityExpandedVPNTag];
-        vpnCard.hidden = !expanded;
-        if (expanded && scroll) {
-            CGFloat width = CGRectGetWidth(root.bounds);
-            CCAConnectivityExpandedMetrics metrics = CCAConnectivityMetricsForWidth(width);
-            NSDictionary<NSString *, NSValue *> *frames = @{
-                @"CCUIConnectivityAirplaneViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityAirplaneViewController", root.bounds.size)],
-                @"CCUIConnectivityWifiViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityWifiViewController", root.bounds.size)],
-                @"CCUIConnectivityAirDropViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityAirDropViewController", root.bounds.size)],
-                @"CCUIConnectivityCellularDataViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityCellularDataViewController", root.bounds.size)],
-                @"CCUIConnectivityBluetoothViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityBluetoothViewController", root.bounds.size)],
-                @"CCUIConnectivityHotspotViewController": [NSValue valueWithCGRect:CCAExpandedConnectivityFrameForClass(@"CCUIConnectivityHotspotViewController", root.bounds.size)],
-            };
-            NSArray<NSString *> *cardOrder = @[
-                @"CCUIConnectivityAirplaneViewController", @"CCUIConnectivityWifiViewController",
-                @"CCUIConnectivityAirDropViewController", @"CCUIConnectivityCellularDataViewController",
-                @"CCUIConnectivityBluetoothViewController", @"CCUIConnectivityHotspotViewController"
-            ];
-            [UIView performWithoutAnimation:^{
-                scroll.scrollEnabled = YES;
-                scroll.frame = root.bounds;
-                scroll.bounds = root.bounds;
-                scroll.contentSize = CGSizeMake(width, MAX(CGRectGetHeight(root.bounds), metrics.contentHeight));
-                [cardOrder enumerateObjectsUsingBlock:^(NSString *name, NSUInteger index, __unused BOOL *stop) {
-                    UIViewController *child = children[name];
-                    CGRect frame = [frames[name] CGRectValue];
-                    if (!child) return;
-                    UIView *card = [root viewWithTag:kCCAConnectivityExpandedCardBaseTag + (NSInteger)index];
-                    if (!card) {
-                        card = CCANewConnectivityMaterialView(root);
-                        card.tag = kCCAConnectivityExpandedCardBaseTag + (NSInteger)index;
-                        card.userInteractionEnabled = NO;
-                        card.layer.cornerCurve = kCACornerCurveContinuous;
-                        [scroll insertSubview:card atIndex:0];
-                    }
-                    card.hidden = NO;
-                    card.frame = frame;
-                    BOOL squareCard = fabs(CGRectGetWidth(frame) - CGRectGetHeight(frame)) < 2.0;
-                    card.layer.cornerRadius = squareCard ? MIN(26.0, round(CGRectGetWidth(frame) * 0.17))
-                                                        : MIN(22.0, round(CGRectGetHeight(frame) * 0.38));
-                    card.layer.masksToBounds = YES;
-                    child.view.transform = CGAffineTransformIdentity;
-                    child.view.hidden = NO;
-                    child.view.alpha = 1.0;
-                    child.view.frame = frame;
-                    CCAStyleExpandedConnectivityChild(child, card, frame);
-                    [scroll bringSubviewToFront:child.view];
-                }];
-                UIControl *vpn = (UIControl *)[root viewWithTag:kCCAConnectivityExpandedVPNTag];
-                CGRect hotspotFrame = [frames[@"CCUIConnectivityHotspotViewController"] CGRectValue];
-                CGRect vpnFrame = CGRectMake(metrics.inset, CGRectGetMaxY(hotspotFrame) + metrics.gap, width - metrics.inset * 2.0, metrics.barHeight);
-                if (!vpn) {
-                    vpn = [[UIControl alloc] initWithFrame:vpnFrame];
-                    vpn.tag = kCCAConnectivityExpandedVPNTag;
-                    vpn.backgroundColor = UIColor.clearColor;
-                    vpn.layer.cornerRadius = 20.0;
-                    vpn.layer.cornerCurve = kCACornerCurveContinuous;
-                    vpn.layer.masksToBounds = YES;
-                    UIView *vpnMaterial = CCANewConnectivityMaterialView(root);
-                    vpnMaterial.tag = 90;
-                    vpnMaterial.frame = vpn.bounds;
-                    vpnMaterial.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                    vpnMaterial.userInteractionEnabled = NO;
-                    [vpn addSubview:vpnMaterial];
-                    [vpn addTarget:[CCAsterCoordinator shared] action:@selector(openVPNSettings:) forControlEvents:UIControlEventTouchUpInside];
-                    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:16.0 weight:UIImageSymbolWeightMedium];
-                    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"network" withConfiguration:configuration]];
-                    icon.tag = 1; icon.tintColor = [UIColor.whiteColor colorWithAlphaComponent:0.45]; icon.contentMode = UIViewContentModeCenter;
-                    CGFloat iconSide = 38.0;
-                    CGFloat iconInset = round((metrics.barHeight - iconSide) * 0.5);
-                    icon.frame = CGRectMake(iconInset, iconInset, iconSide, iconSide); icon.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.08]; icon.layer.cornerRadius = iconSide * 0.5;
-                    [vpn addSubview:icon];
-                    CGFloat labelX = iconInset * 2.0 + iconSide;
-                    CGFloat labelTop = round((metrics.barHeight - 34.0) * 0.5);
-                    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(labelX, labelTop, CGRectGetWidth(vpnFrame) - labelX - iconInset, 17.0)];
-                    title.text = @"VPN"; title.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold]; title.textColor = [UIColor.whiteColor colorWithAlphaComponent:0.58];
-                    [vpn addSubview:title];
-                    UILabel *status = [[UILabel alloc] initWithFrame:CGRectMake(labelX, labelTop + 17.0, CGRectGetWidth(vpnFrame) - labelX - iconInset, 17.0)];
-                    status.text = @"Off"; status.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightRegular]; status.textColor = [UIColor.whiteColor colorWithAlphaComponent:0.38];
-                    [vpn addSubview:status];
-                    [scroll addSubview:vpn];
-                }
-                vpn.hidden = NO;
-                vpn.frame = vpnFrame;
-                [vpn viewWithTag:90].frame = vpn.bounds;
-                [scroll bringSubviewToFront:vpn];
-            }];
-        }
+        vpnCard.hidden = YES;
+        CCARestoreConnectivityContainerMaterial(root);
         return;
     }
 
@@ -11276,12 +11191,8 @@ static void CCAConfigureExpandedConnectivityChild(__unused UIViewController *chi
 %hook CCUIConnectivityModuleViewController
 
 - (double)preferredExpandedContentHeight {
-    if (!gEnabled) return %orig;
-    CGFloat width = CGRectGetWidth(((UIViewController *)(id)self).view.bounds);
-    SEL widthSelector = NSSelectorFromString(@"preferredExpandedContentWidth");
-    if (width < 250.0 && [(id)self respondsToSelector:widthSelector]) width = ((double (*)(id, SEL))objc_msgSend)((id)self, widthSelector);
-    if (width < 250.0) width = CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.856;
-    return CCAConnectivityMetricsForWidth(width).contentHeight;
+    // Preserve Apple's native expanded height and geometry.
+    return %orig;
 }
 
 - (void)viewDidLayoutSubviews {
