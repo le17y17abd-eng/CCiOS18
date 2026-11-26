@@ -17,6 +17,128 @@
 - (void)ccios18_finishInlineEditing;
 @end
 
+
+typedef struct CCiOS18GridSize { NSUInteger width; NSUInteger height; } CCiOS18GridSize;
+typedef struct CCiOS18GridPoint { NSUInteger x; NSUInteger y; } CCiOS18GridPoint;
+typedef struct CCiOS18GridRect { CCiOS18GridPoint origin; CCiOS18GridSize size; } CCiOS18GridRect;
+static NSMutableDictionary<NSString *, NSValue *> *gCCiOS18BaseGridSizes;
+static NSMutableDictionary<NSString *, NSValue *> *gCCiOS18NativeGridRects;
+static NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *gCCiOS18CustomGridSizes;
+static NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *gCCiOS18CustomGridOrigins;
+static const NSUInteger kCCiOS18GridColumns = 4;
+static const NSUInteger kCCiOS18GridRows = 8;
+static CGFloat const kCCiOS18GridCell = 67.0;
+static CGFloat const kCCiOS18GridGap = 12.0;
+static NSString * const kCCiOS18GridPrefsDomain = @"com.le17y17abd-eng.ccios18";
+static void CCiOS18LoadGridPreferences(void) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSDictionary *sizes = [defaults dictionaryForKey:@"CCiOS18ModuleGridSizes"];
+    NSDictionary *origins = [defaults dictionaryForKey:@"CCiOS18ModuleGridOrigins"];
+    gCCiOS18CustomGridSizes = [sizes mutableCopy] ?: [NSMutableDictionary new];
+    gCCiOS18CustomGridOrigins = [origins mutableCopy] ?: [NSMutableDictionary new];
+    if (!gCCiOS18BaseGridSizes) gCCiOS18BaseGridSizes = [NSMutableDictionary new];
+    if (!gCCiOS18NativeGridRects) gCCiOS18NativeGridRects = [NSMutableDictionary new];
+}
+static void CCiOS18SaveGridPreferences(void) {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:[gCCiOS18CustomGridSizes copy] ?: @{} forKey:@"CCiOS18ModuleGridSizes"];
+    [defaults setObject:[gCCiOS18CustomGridOrigins copy] ?: @{} forKey:@"CCiOS18ModuleGridOrigins"];
+    [defaults synchronize];
+}
+static BOOL CCiOS18GridRectsOverlap(CCiOS18GridRect a, CCiOS18GridRect b) {
+    return a.origin.x < b.origin.x + b.size.width && b.origin.x < a.origin.x + a.size.width &&
+           a.origin.y < b.origin.y + b.size.height && b.origin.y < a.origin.y + a.size.height;
+}
+static BOOL CCiOS18GridRectFits(CCiOS18GridRect rect) {
+    return rect.size.width > 0 && rect.size.height > 0 &&
+           rect.origin.x + rect.size.width <= kCCiOS18GridColumns &&
+           rect.origin.y + rect.size.height <= kCCiOS18GridRows;
+}
+static BOOL CCiOS18ApplyGridResize(NSString *sourceID, CCiOS18GridSize newSize, UIViewController *overlay) {
+    if (!sourceID.length || !overlay) return NO;
+    NSMutableDictionary<NSString *, NSValue *> *layout = [NSMutableDictionary new];
+    for (UIViewController *module in CCiOS18InlineModules(overlay)) {
+        NSString *identifier = CCiOS18IdentifierFromObject(module, 0);
+        NSValue *nativeValue = identifier.length ? gCCiOS18NativeGridRects[identifier] : nil;
+        if (!nativeValue) continue;
+        CCiOS18GridRect rect = {}; [nativeValue getValue:&rect];
+        NSArray *savedOrigin = gCCiOS18CustomGridOrigins[identifier];
+        NSArray *savedSize = gCCiOS18CustomGridSizes[identifier];
+        if (savedOrigin.count >= 2) rect.origin = (CCiOS18GridPoint){[savedOrigin[0] unsignedIntegerValue], [savedOrigin[1] unsignedIntegerValue]};
+        if (savedSize.count >= 2) rect.size = (CCiOS18GridSize){[savedSize[0] unsignedIntegerValue], [savedSize[1] unsignedIntegerValue]};
+        if (CCiOS18GridRectFits(rect)) layout[identifier] = [NSValue value:&rect withObjCType:@encode(CCiOS18GridRect)];
+    }
+    NSValue *sourceValue = layout[sourceID];
+    if (!sourceValue) return NO;
+    CCiOS18GridRect source = {}; [sourceValue getValue:&source];
+    source.size = newSize;
+    if (!CCiOS18GridRectFits(source)) return NO;
+    layout[sourceID] = [NSValue value:&source withObjCType:@encode(CCiOS18GridRect)];
+    NSMutableArray<NSString *> *ids = [layout.allKeys mutableCopy];
+    [ids removeObject:sourceID];
+    [ids sortUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        CCiOS18GridRect ra = {}, rb = {}; [layout[a] getValue:&ra]; [layout[b] getValue:&rb];
+        if (ra.origin.y != rb.origin.y) return ra.origin.y < rb.origin.y ? NSOrderedAscending : NSOrderedDescending;
+        if (ra.origin.x != rb.origin.x) return ra.origin.x < rb.origin.x ? NSOrderedAscending : NSOrderedDescending;
+        return [a compare:b];
+    }];
+    NSMutableArray<NSString *> *placed = [NSMutableArray arrayWithObject:sourceID];
+    for (NSString *identifier in ids) {
+        CCiOS18GridRect candidate = {}; [layout[identifier] getValue:&candidate];
+        BOOL collision = NO;
+        for (NSString *blockerID in placed) {
+            CCiOS18GridRect blocker = {}; [layout[blockerID] getValue:&blocker];
+            if (CCiOS18GridRectsOverlap(candidate, blocker)) { collision = YES; break; }
+        }
+        if (collision) {
+            BOOL found = NO; NSUInteger bestDistance = NSUIntegerMax; CCiOS18GridRect best = {};
+            CCiOS18GridRect original = candidate;
+            for (NSUInteger y = 0; y + candidate.size.height <= kCCiOS18GridRows; y++) {
+                for (NSUInteger x = 0; x + candidate.size.width <= kCCiOS18GridColumns; x++) {
+                    CCiOS18GridRect trial = candidate; trial.origin = (CCiOS18GridPoint){x,y};
+                    BOOL fits = YES;
+                    for (NSString *blockerID in placed) {
+                        CCiOS18GridRect blocker = {}; [layout[blockerID] getValue:&blocker];
+                        if (CCiOS18GridRectsOverlap(trial, blocker)) { fits = NO; break; }
+                    }
+                    if (!fits) continue;
+                    NSUInteger dx = x > original.origin.x ? x-original.origin.x : original.origin.x-x;
+                    NSUInteger dy = y > original.origin.y ? y-original.origin.y : original.origin.y-y;
+                    NSUInteger distance = dx + dy;
+                    if (!found || distance < bestDistance || (distance == bestDistance && y < best.origin.y)) {
+                        found = YES; bestDistance = distance; best = trial;
+                    }
+                }
+            }
+            if (!found) return NO;
+            candidate = best;
+            layout[identifier] = [NSValue value:&candidate withObjCType:@encode(CCiOS18GridRect)];
+        }
+        [placed addObject:identifier];
+    }
+    for (NSString *identifier in layout) {
+        CCiOS18GridRect rect = {}; [layout[identifier] getValue:&rect];
+        gCCiOS18CustomGridOrigins[identifier] = @[@(rect.origin.x), @(rect.origin.y)];
+    }
+    gCCiOS18CustomGridSizes[sourceID] = @[@(newSize.width), @(newSize.height)];
+    CCiOS18SaveGridPreferences();
+    for (UIViewController *module in CCiOS18InlineModules(overlay)) {
+        if (![CCiOS18IdentifierFromObject(module, 0) isEqualToString:sourceID]) continue;
+        id contentModule = nil; id context = nil;
+        @try { contentModule = [module valueForKey:@"module"]; context = [contentModule valueForKey:@"contentModuleContext"]; } @catch (__unused NSException *e) {}
+        SEL request = NSSelectorFromString(@"requestLayoutSizeUpdate");
+        if ([context respondsToSelector:request]) ((void (*)(id, SEL))objc_msgSend)(context, request);
+        break;
+    }
+    UIViewController *collection = nil;
+    for (UIViewController *child in overlay.childViewControllers) {
+        if (CCiOS18ClassContains(child, @"CCUIModuleCollectionViewController")) { collection = child; break; }
+    }
+    [collection.view setNeedsLayout];
+    [collection.view layoutIfNeeded];
+    return YES;
+}
+
 // CCiOS18 — iOS 15 native Control Center visual layer.
 // Original Apple modules and their actions are retained.
 
@@ -83,6 +205,44 @@ static void CCiOS18StyleSliderViews(UIView *container) {
         CCiOS18StyleSliderViews(view);
     }
 }
+
+
+// Native Control Center grid integration: store actual 1x1/2x1/2x2 footprints,
+// rather than scaling a module's UIView transform.
+%hook CCUIModuleCollectionViewController
+- (CCUILayoutSize)moduleLayoutSizeForContentModuleContext:(id)context forOrientation:(NSInteger)orientation {
+    CCUILayoutSize size = %orig;
+    NSString *identifier = [context respondsToSelector:@selector(moduleIdentifier)] ? ((id (*)(id, SEL))objc_msgSend)(context, @selector(moduleIdentifier)) : nil;
+    if (identifier.length) {
+        CCiOS18GridSize base = {size.width, size.height};
+        if (!gCCiOS18BaseGridSizes[identifier]) gCCiOS18BaseGridSizes[identifier] = [NSValue value:&base withObjCType:@encode(CCiOS18GridSize)];
+        NSArray *custom = gCCiOS18CustomGridSizes[identifier];
+        if (custom.count >= 2) { size.width = [custom[0] unsignedIntegerValue]; size.height = [custom[1] unsignedIntegerValue]; }
+    }
+    return size;
+}
+- (CCUILayoutRect)layoutView:(id)layoutView layoutRectForSubview:(UIView *)subview {
+    CCUILayoutRect rect = %orig;
+    NSDictionary *containers = nil;
+    @try { containers = [(id)self valueForKey:@"moduleContainerViewByIdentifier"]; } @catch (__unused NSException *e) {}
+    __block NSString *identifier = nil;
+    [containers enumerateKeysAndObjectsUsingBlock:^(NSString *key, id value, BOOL *stop) {
+        UIView *candidate = [value isKindOfClass:[UIView class]] ? value : ([value respondsToSelector:@selector(view)] ? [value view] : nil);
+        if (candidate == subview) { identifier = key; *stop = YES; }
+    }];
+    if (identifier.length) {
+        CCiOS18GridSize base = {rect.size.width, rect.size.height};
+        if (!gCCiOS18BaseGridSizes[identifier]) gCCiOS18BaseGridSizes[identifier] = [NSValue value:&base withObjCType:@encode(CCiOS18GridSize)];
+        CCiOS18GridRect saved = {{rect.origin.x, rect.origin.y},{rect.size.width,rect.size.height}};
+        gCCiOS18NativeGridRects[identifier] = [NSValue value:&saved withObjCType:@encode(CCiOS18GridRect)];
+        NSArray *origin = gCCiOS18CustomGridOrigins[identifier];
+        NSArray *size = gCCiOS18CustomGridSizes[identifier];
+        if (origin.count >= 2) { rect.origin.x = [origin[0] unsignedIntegerValue]; rect.origin.y = [origin[1] unsignedIntegerValue]; }
+        if (size.count >= 2) { rect.size.width = [size[0] unsignedIntegerValue]; rect.size.height = [size[1] unsignedIntegerValue]; }
+    }
+    return rect;
+}
+%end
 
 %hook CCUIContentModuleContentContainerView
 
@@ -351,7 +511,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         if (!longPress) {
             longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(ccios18_handleLongPress:)];
             longPress.minimumPressDuration = 0.55;
-            longPress.cancelsTouchesInView = NO;
+            longPress.cancelsTouchesInView = YES;
             longPress.delaysTouchesBegan = NO;
             longPress.delegate = CCiOS18SharedLongPressDelegate();
             [root addGestureRecognizer:longPress];
@@ -375,6 +535,7 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
 %new
 - (void)ccios18_setInlineEditing:(BOOL)editing {
     UIView *root = [(UIViewController *)self view];
+    if (editing) CCiOS18LoadGridPreferences();
     objc_setAssociatedObject(self, &kCCiOS18InlineEditingKey, @(editing), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSArray<NSString *> *editableOrder = CCiOS18CurrentEnabledModuleOrder();
     CCiOS18SetScrollViewsForEditing(root, editing);
@@ -691,25 +852,52 @@ static CGFloat CCiOS18SavedScaleForIdentifier(NSString *identifier) {
         CGFloat base = CCiOS18SavedScaleForIdentifier(identifier);
         objc_setAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey, @(base), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     } else if (gesture.state == UIGestureRecognizerStateChanged) {
-        CGFloat base = [objc_getAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey) doubleValue];
-        if (base <= 0.0) base = 1.0;
+        CCiOS18GridSize baseSize = {1,1};
+        NSValue *baseValue = gCCiOS18BaseGridSizes[identifier]; if (baseValue) [baseValue getValue:&baseSize];
+        NSArray *saved = gCCiOS18CustomGridSizes[identifier];
+        CCiOS18GridSize start = saved.count >= 2 ? (CCiOS18GridSize){[saved[0] unsignedIntegerValue],[saved[1] unsignedIntegerValue]} : baseSize;
         CGPoint translation = [gesture translationInView:self.view];
-        CGFloat unit = MAX(120.0, (CGRectGetWidth(moduleView.bounds) + CGRectGetHeight(moduleView.bounds)) * 0.5);
-        CGFloat delta = (translation.x + translation.y) / unit;
-        CGFloat scale = MAX(0.55, MIN(1.65, base + delta));
-        moduleView.transform = CGAffineTransformMakeScale(scale, scale);
+        CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
+        CGFloat dx = translation.x / step, dy = translation.y / step;
+        CCiOS18GridSize candidate = start;
+        if (baseSize.width == 1 && baseSize.height == 1) {
+            if (dy >= 0.65) candidate = (CCiOS18GridSize){2,2};
+            else if (dx >= 0.65) candidate = (CCiOS18GridSize){2,1};
+            else candidate = (CCiOS18GridSize){1,1};
+        } else if (baseSize.width == 2 && baseSize.height == 2) {
+            if (dx >= 1.0) candidate = (CCiOS18GridSize){4,2};
+            else candidate = (CCiOS18GridSize){2,2};
+        }
+        CGFloat width = candidate.width * kCCiOS18GridCell + (candidate.width-1) * kCCiOS18GridGap;
+        CGFloat height = candidate.height * kCCiOS18GridCell + (candidate.height-1) * kCCiOS18GridGap;
+        CGRect frame = [moduleView convertRect:moduleView.bounds toView:self.view];
+        frame.size = CGSizeMake(width,height);
+        moduleView.frame = [self.view convertRect:frame toView:moduleView.superview];
         [self ccios18_refreshInlineEditor];
     } else if (gesture.state == UIGestureRecognizerStateEnded) {
-        CGFloat scale = MAX(0.55, MIN(1.65, moduleView.transform.a));
-        NSString *key = [@"CCiOS18ModuleScale." stringByAppendingString:identifier];
-        [[NSUserDefaults standardUserDefaults] setFloat:scale forKey:key];
-        [[NSUserDefaults standardUserDefaults] synchronize];
+        CCiOS18GridSize baseSize = {1,1};
+        NSValue *baseValue = gCCiOS18BaseGridSizes[identifier]; if (baseValue) [baseValue getValue:&baseSize];
+        NSArray *saved = gCCiOS18CustomGridSizes[identifier];
+        CCiOS18GridSize start = saved.count >= 2 ? (CCiOS18GridSize){[saved[0] unsignedIntegerValue],[saved[1] unsignedIntegerValue]} : baseSize;
+        CGPoint translation = [gesture translationInView:self.view];
+        CGFloat step = kCCiOS18GridCell + kCCiOS18GridGap;
+        CCiOS18GridSize candidate = start;
+        if (baseSize.width == 1 && baseSize.height == 1) {
+            if (translation.y / step >= 0.65) candidate = (CCiOS18GridSize){2,2};
+            else if (translation.x / step >= 0.65) candidate = (CCiOS18GridSize){2,1};
+            else candidate = (CCiOS18GridSize){1,1};
+        } else if (baseSize.width == 2 && baseSize.height == 2) {
+            candidate = translation.x / step >= 1.0 ? (CCiOS18GridSize){4,2} : (CCiOS18GridSize){2,2};
+        }
+        if (candidate.width != start.width || candidate.height != start.height) {
+            CCiOS18ApplyGridResize(identifier, candidate, (UIViewController *)self);
+        }
+        moduleView.transform = CGAffineTransformIdentity;
         objc_setAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self ccios18_refreshInlineEditor];
     } else if (gesture.state == UIGestureRecognizerStateCancelled || gesture.state == UIGestureRecognizerStateFailed) {
-        CGFloat base = [objc_getAssociatedObject(handle, &kCCiOS18InlineResizeBaseScaleKey) doubleValue];
-        if (base <= 0.0) base = CCiOS18SavedScaleForIdentifier(identifier);
-        moduleView.transform = CGAffineTransformMakeScale(base, base);
+        moduleView.transform = CGAffineTransformIdentity;
+        [self ccios18_refreshInlineEditor];
     }
 }
 
